@@ -23,7 +23,7 @@ intents.presences = False
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 # Define constants
-ADMIN_ROLE_ID = 123456789  # Replace with your admin role ID
+ADMIN_ROLE_ID = 1182399086503145545  # Replace with your admin role ID
 NUM_PARTICIPANTS = 30
 ALLOWED_CHANNEL_ID = 1218223013938331708  # Replace with your desired channel ID
 
