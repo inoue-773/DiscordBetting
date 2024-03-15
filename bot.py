@@ -17,7 +17,7 @@ users_collection = db["users"]
 bets_collection = db["bets"]
 
 # Set up Discord client
-intents = discord.Intents.all()
+intents = discord.Intents.default()
 intents.typing = False
 intents.presences = False
 bot = commands.Bot(command_prefix='/', intents=intents)
@@ -35,16 +35,20 @@ def is_allowed_channel(ctx):
     return ctx.channel.id == ALLOWED_CHANNEL_ID
 
 # Initial setup for users
-for i in range(1, NUM_PARTICIPANTS + 1):
-    user_data = {
-        "user_id": i,
-        "points": 0  # Initial points for each user
-    }
-    users_collection.insert_one(user_data)
+@bot.event
+async def on_ready():
+    print(f'{bot.user.name} has connected to Discord!')
+    for member in bot.get_all_members():
+        user_data = {
+            "user_id": member.id,
+            "points": 1000  # Initial points for each user
+        }
+        users_collection.update_one({"user_id": member.id}, {"$set": user_data}, upsert=True)
 
 # Define bot commands
 @bot.command()
 @commands.check(is_admin)
+@commands.check(is_allowed_channel)
 async def startbet(ctx, title, time, player1: int, player2: int):
     if player1 < 1 or player1 > NUM_PARTICIPANTS or player2 < 1 or player2 > NUM_PARTICIPANTS:
         await ctx.send("Invalid player IDs. Players should be between 1 and 30.")
@@ -78,29 +82,21 @@ async def forcestop(ctx):
 @bot.command()
 @commands.check(is_admin)
 @commands.check(is_allowed_channel)
-async def givept(ctx, user: int, amount: int):
-    if user < 1 or user > NUM_PARTICIPANTS:
-        await ctx.send("Invalid user ID. User should be between 1 and 30.")
-        return
-
-    users_collection.update_one({"user_id": user}, {"$inc": {"points": amount}})
-    await ctx.send(f"Given {amount} points to user {user}.")
+async def givept(ctx, user: discord.User, amount: int):
+    users_collection.update_one({"user_id": user.id}, {"$inc": {"points": amount}})
+    await ctx.send(f"Given {amount} points to {user.name}.")
 
 @bot.command()
 @commands.check(is_admin)
 @commands.check(is_allowed_channel)
-async def takept(ctx, user: int, amount: int):
-    if user < 1 or user > NUM_PARTICIPANTS:
-        await ctx.send("Invalid user ID. User should be between 1 and 30.")
-        return
-
-    user_data = users_collection.find_one({"user_id": user})
+async def takept(ctx, user: discord.User, amount: int):
+    user_data = users_collection.find_one({"user_id": user.id})
     if user_data["points"] < amount:
-        await ctx.send(f"User {user} doesn't have enough points to take {amount}.")
+        await ctx.send(f"{user.name} doesn't have enough points to take {amount}.")
         return
 
-    users_collection.update_one({"user_id": user}, {"$inc": {"points": -amount}})
-    await ctx.send(f"Taken {amount} points from user {user}.")
+    users_collection.update_one({"user_id": user.id}, {"$inc": {"points": -amount}})
+    await ctx.send(f"Taken {amount} points from {user.name}.")
 
 @bot.command()
 @commands.check(is_admin)
@@ -151,7 +147,6 @@ async def winner(ctx, player: int):
     await ctx.send(f"Player {winner_id} has won the bet '{latest_bet['title']}'.")
 
 @bot.command()
-@commands.check(is_allowed_channel)
 async def result(ctx):
     latest_bet = bets_collection.find_one({"result": {"$ne": None}}, sort=[("time", -1)])
     if not latest_bet:
@@ -177,13 +172,12 @@ async def result(ctx):
     await ctx.send(result_message)
 
 @bot.command()
-@commands.check(is_allowed_channel)
 async def bet(ctx, amount: int, player: int):
     if player != 1 and player != 2:
         await ctx.send("Player should be either 1 or 2.")
         return
 
-    user_id = ctx.author.id % NUM_PARTICIPANTS + 1
+    user_id = ctx.author.id
     user_data = users_collection.find_one({"user_id": user_id})
     if user_data["points"] < amount:
         await ctx.send(f"You don't have enough points to bet {amount}.")
@@ -207,6 +201,16 @@ async def bet(ctx, amount: int, player: int):
     users_collection.update_one({"user_id": user_id}, {"$inc": {"points": -amount}})
 
     await ctx.send(f"You have placed a bet of {amount} points on player {player}.")
+
+@bot.command()
+async def balance(ctx):
+    user_id = ctx.author.id
+    user_data = users_collection.find_one({"user_id": user_id})
+    if user_data:
+        points = user_data.get("points", 0)
+        await ctx.send(f"Your current balance is {points} points.")
+    else:
+        await ctx.send("You don't have a balance yet. Join the server to get started.")
 
 # Run the bot
 bot.run(DISCORD_TOKEN)
