@@ -17,7 +17,7 @@ users_collection = db["users"]
 bets_collection = db["bets"]
 
 # Set up Discord client
-intents = discord.Intents.all()
+intents = discord.Intents.default()
 intents.typing = False
 intents.presences = False
 bot = commands.Bot(command_prefix='/', intents=intents)
@@ -41,7 +41,7 @@ async def on_ready():
     for member in bot.get_all_members():
         user_data = {
             "user_id": member.id,
-            "points": 1000  # Initial points for each user
+            "points": 0  # Initial points for each user
         }
         users_collection.update_one({"user_id": member.id}, {"$set": user_data}, upsert=True)
 
@@ -51,13 +51,13 @@ async def on_ready():
 @commands.check(is_allowed_channel)
 async def startbet(ctx, title, time, player1: int, player2: int):
     if player1 < 1 or player1 > NUM_PARTICIPANTS or player2 < 1 or player2 > NUM_PARTICIPANTS:
-        await ctx.send("Invalid player IDs. Players should be between 1 and 30.")
+        await ctx.send("Invalid player IDs. Players should be between 1 and 30.", ephemeral=True)
         return
 
     try:
         time_obj = datetime.datetime.strptime(time, "%Y-%m-%d %H:%M")
     except ValueError:
-        await ctx.send("Invalid time format. Use YYYY-MM-DD HH:MM.")
+        await ctx.send("Invalid time format. Use YYYY-MM-DD HH:MM.", ephemeral=True)
         return
 
     bet_data = {
@@ -84,7 +84,7 @@ async def forcestop(ctx):
 @commands.check(is_allowed_channel)
 async def givept(ctx, user: discord.User, amount: int):
     users_collection.update_one({"user_id": user.id}, {"$inc": {"points": amount}})
-    await ctx.send(f"Given {amount} points to {user.name}.")
+    await ctx.send(f"Given {amount} points to {user.name}.", ephemeral=True)
 
 @bot.command()
 @commands.check(is_admin)
@@ -92,30 +92,30 @@ async def givept(ctx, user: discord.User, amount: int):
 async def takept(ctx, user: discord.User, amount: int):
     user_data = users_collection.find_one({"user_id": user.id})
     if user_data["points"] < amount:
-        await ctx.send(f"{user.name} doesn't have enough points to take {amount}.")
+        await ctx.send(f"{user.name} doesn't have enough points to take {amount}.", ephemeral=True)
         return
 
     users_collection.update_one({"user_id": user.id}, {"$inc": {"points": -amount}})
-    await ctx.send(f"Taken {amount} points from {user.name}.")
+    await ctx.send(f"Taken {amount} points from {user.name}.", ephemeral=True)
 
 @bot.command()
 @commands.check(is_admin)
 @commands.check(is_allowed_channel)
 async def betlist(ctx, player: int):
     if player != 1 and player != 2:
-        await ctx.send("Player should be either 1 or 2.")
+        await ctx.send("Player should be either 1 or 2.", ephemeral=True)
         return
 
     latest_bet = bets_collection.find_one({"result": None}, sort=[("time", -1)])
     if not latest_bet:
-        await ctx.send("No ongoing bet found.")
+        await ctx.send("No ongoing bet found.", ephemeral=True)
         return
 
     player_key = f"player{player}"
     bettors = [bet["user_id"] for bet in latest_bet["bets"] if bet["player"] == latest_bet[player_key]]
 
     if not bettors:
-        await ctx.send(f"No one has placed a bet on player {player} yet.")
+        await ctx.send(f"No one has placed a bet on player {player} yet.", ephemeral=True)
     else:
         bettor_list = "\n".join(map(str, bettors))
         await ctx.send(f"Users who placed bets on player {player}:\n{bettor_list}")
@@ -125,12 +125,12 @@ async def betlist(ctx, player: int):
 @commands.check(is_allowed_channel)
 async def winner(ctx, player: int):
     if player != 1 and player != 2:
-        await ctx.send("Player should be either 1 or 2.")
+        await ctx.send("Player should be either 1 or 2.", ephemeral=True)
         return
 
     latest_bet = bets_collection.find_one({"result": None}, sort=[("time", -1)])
     if not latest_bet:
-        await ctx.send("No ongoing bet found.")
+        await ctx.send("No ongoing bet found.", ephemeral=True)
         return
 
     winner_id = latest_bet[f"player{player}"]
@@ -150,7 +150,7 @@ async def winner(ctx, player: int):
 async def result(ctx):
     latest_bet = bets_collection.find_one({"result": {"$ne": None}}, sort=[("time", -1)])
     if not latest_bet:
-        await ctx.send("No completed bet found.")
+        await ctx.send("No completed bet found.", ephemeral=True)
         return
 
     winner_id = latest_bet["result"]
@@ -174,22 +174,22 @@ async def result(ctx):
 @bot.command()
 async def bet(ctx, amount: int, player: int):
     if player != 1 and player != 2:
-        await ctx.send("Player should be either 1 or 2.")
+        await ctx.send("Player should be either 1 or 2.", ephemeral=True)
         return
 
     user_id = ctx.author.id
     user_data = users_collection.find_one({"user_id": user_id})
     if user_data["points"] < amount:
-        await ctx.send(f"You don't have enough points to bet {amount}.")
+        await ctx.send(f"You don't have enough points to bet {amount}.", ephemeral=True)
         return
 
     latest_bet = bets_collection.find_one({"result": None}, sort=[("time", -1)])
     if not latest_bet:
-        await ctx.send("No ongoing bet found.")
+        await ctx.send("No ongoing bet found.", ephemeral=True)
         return
 
     if latest_bet[f"player{player}"] != player:
-        await ctx.send(f"Player {player} is not participating in the current bet.")
+        await ctx.send(f"Player {player} is not participating in the current bet.", ephemeral=True)
         return
 
     bet_data = {
@@ -200,7 +200,7 @@ async def bet(ctx, amount: int, player: int):
     bets_collection.update_one({"_id": latest_bet["_id"]}, {"$push": {"bets": bet_data}})
     users_collection.update_one({"user_id": user_id}, {"$inc": {"points": -amount}})
 
-    await ctx.send(f"You have placed a bet of {amount} points on player {player}.")
+    await ctx.send(f"You have placed a bet of {amount} points on player {player}.", ephemeral=True)
 
 @bot.command()
 async def balance(ctx):
@@ -208,9 +208,9 @@ async def balance(ctx):
     user_data = users_collection.find_one({"user_id": user_id})
     if user_data:
         points = user_data.get("points", 0)
-        await ctx.send(f"Your current balance is {points} points.")
+        await ctx.send(f"Your current balance is {points} points.", ephemeral=True)
     else:
-        await ctx.send("You don't have a balance yet. Join the server to get started.")
+        await ctx.send("You don't have a balance yet. Join the server to get started.", ephemeral=True)
 
 # Run the bot
 bot.run(DISCORD_TOKEN)
