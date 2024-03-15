@@ -23,18 +23,22 @@ intents.presences = False
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 # Define constants
-ADMIN_ROLE_ID = 1182399086503145545  # Replace with your admin role ID
+ADMIN_ROLE_ID = 123456789  # Replace with your admin role ID
 NUM_PARTICIPANTS = 30
+ALLOWED_CHANNEL_ID = 1218223013938331708  # Replace with your desired channel ID
 
 # Helper functions
 def is_admin(ctx):
     return any(role.id == ADMIN_ROLE_ID for role in ctx.author.roles)
 
+def is_allowed_channel(ctx):
+    return ctx.channel.id == ALLOWED_CHANNEL_ID
+
 # Initial setup for users
 for i in range(1, NUM_PARTICIPANTS + 1):
     user_data = {
         "user_id": i,
-        "points": 1000  # Initial points for each user
+        "points": 0  # Initial points for each user
     }
     users_collection.insert_one(user_data)
 
@@ -66,12 +70,14 @@ async def startbet(ctx, title, time, player1: int, player2: int):
 
 @bot.command()
 @commands.check(is_admin)
+@commands.check(is_allowed_channel)
 async def forcestop(ctx):
     bets_collection.drop()
     await ctx.send("All ongoing bets have been forcefully stopped.")
 
 @bot.command()
 @commands.check(is_admin)
+@commands.check(is_allowed_channel)
 async def givept(ctx, user: int, amount: int):
     if user < 1 or user > NUM_PARTICIPANTS:
         await ctx.send("Invalid user ID. User should be between 1 and 30.")
@@ -82,6 +88,7 @@ async def givept(ctx, user: int, amount: int):
 
 @bot.command()
 @commands.check(is_admin)
+@commands.check(is_allowed_channel)
 async def takept(ctx, user: int, amount: int):
     if user < 1 or user > NUM_PARTICIPANTS:
         await ctx.send("Invalid user ID. User should be between 1 and 30.")
@@ -97,6 +104,7 @@ async def takept(ctx, user: int, amount: int):
 
 @bot.command()
 @commands.check(is_admin)
+@commands.check(is_allowed_channel)
 async def betlist(ctx, player: int):
     if player != 1 and player != 2:
         await ctx.send("Player should be either 1 or 2.")
@@ -118,6 +126,7 @@ async def betlist(ctx, player: int):
 
 @bot.command()
 @commands.check(is_admin)
+@commands.check(is_allowed_channel)
 async def winner(ctx, player: int):
     if player != 1 and player != 2:
         await ctx.send("Player should be either 1 or 2.")
@@ -142,6 +151,7 @@ async def winner(ctx, player: int):
     await ctx.send(f"Player {winner_id} has won the bet '{latest_bet['title']}'.")
 
 @bot.command()
+@commands.check(is_allowed_channel)
 async def result(ctx):
     latest_bet = bets_collection.find_one({"result": {"$ne": None}}, sort=[("time", -1)])
     if not latest_bet:
@@ -167,6 +177,7 @@ async def result(ctx):
     await ctx.send(result_message)
 
 @bot.command()
+@commands.check(is_allowed_channel)
 async def bet(ctx, amount: int, player: int):
     if player != 1 and player != 2:
         await ctx.send("Player should be either 1 or 2.")
