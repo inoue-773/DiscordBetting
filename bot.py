@@ -17,7 +17,7 @@ users_collection = db["users"]
 bets_collection = db["bets"]
 
 # Set up Discord client
-intents = discord.Intents.default()
+intents = discord.Intents.all()
 intents.typing = False
 intents.presences = False
 bot = commands.Bot(command_prefix='/', intents=intents)
