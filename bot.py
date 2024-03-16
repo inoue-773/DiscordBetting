@@ -4,6 +4,7 @@ import datetime
 import pymongo
 import os
 from dotenv import load_dotenv
+import asyncio
 
 # Load environment variables
 load_dotenv()
@@ -44,6 +45,9 @@ async def on_ready():
             "points": 0  # Initial points for each user
         }
         users_collection.update_one({"user_id": member.id}, {"$set": user_data}, upsert=True)
+
+    # Start background task to close expired bets
+    bot.loop.create_task(close_expired_bets())
 
 # Define bot commands
 @bot.command()
@@ -140,9 +144,9 @@ async def winner(ctx, player: int):
         user_id = bet["user_id"]
         amount = bet["amount"]
         if bet["player"] == winner_id:
-            users_collection.update_one({"user_id": user_id}, {"$inc": {"points": amount}})
+            users_collection.update_one({"user_id": user_id}, {"$inc": {"points": amount}})  # Winner gets their bet amount
         else:
-            users_collection.update_one({"user_id": user_id}, {"$inc": {"points": -amount}})
+            pass  # Losers don't lose any points
 
     await ctx.send(f"Player {winner_id} has won the bet '{latest_bet['title']}'.")
 
@@ -160,7 +164,7 @@ async def result(ctx):
     time = latest_bet["time"].strftime("%Y-%m-%d %H:%M")
 
     result_message = f"Bet '{title}' between player {player1} and player {player2} at {time}\n\n"
-    result_message += f"Winner: Player {winner_id}\n\n"
+    result_message += f"Winner: Player {winner_id}\n\n" if winner_id != -1 else "Bet expired\n\n"
     result_message += "Bets placed:\n"
 
     for bet in latest_bet["bets"]:
@@ -211,6 +215,20 @@ async def balance(ctx):
         await ctx.send(f"Your current balance is {points} points.", ephemeral=True)
     else:
         await ctx.send("You don't have a balance yet. Join the server to get started.", ephemeral=True)
+
+# Background task to close expired bets
+async def close_expired_bets():
+    while True:
+        now = datetime.datetime.utcnow()
+        expired_bets = bets_collection.find({"time": {"$lt": now}, "result": None})
+        for expired_bet in expired_bets:
+            bets_collection.update_one({"_id": expired_bet["_id"]}, {"$set": {"result": -1}})  # -1 means expired
+            for bet in expired_bet["bets"]:
+                user_id = bet["user_id"]
+                amount = bet["amount"]
+                users_collection.update_one({"user_id": user_id}, {"$inc": {"points": amount}})  # Return bet amounts
+            print(f"Closed expired bet: {expired_bet['title']}")
+        await asyncio.sleep(60)  # Check every minute
 
 # Run the bot
 bot.run(DISCORD_TOKEN)
