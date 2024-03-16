@@ -35,32 +35,25 @@ def is_admin(ctx):
 def is_allowed_channel(ctx):
     return ctx.channel.id == ALLOWED_CHANNEL_ID
 
+# Initial setup for users
+@bot.event
 async def on_ready():
     print(f'{bot.user.name} has connected to Discord!')
-    for guild in bot.guilds:
-        server_id = guild.id
-        users_collection = db[f"users_{server_id}"]
-        bets_collection = db[f"bets_{server_id}"]
+    for member in bot.get_all_members():
+        user_data = {
+            "user_id": member.id,
+            "points": 0  # Initial points for each user
+        }
+        users_collection.update_one({"user_id": member.id}, {"$set": user_data}, upsert=True)
 
-        # Initialize server members and their points
-        for member in guild.members:
-            user_data = {
-                "user_id": member.id,
-                "points": 0  # Initial points for each user
-            }
-            users_collection.update_one({"user_id": member.id}, {"$set": user_data}, upsert=True)
-
-        # Start background task to close expired bets for this server
-        bot.loop.create_task(close_expired_bets(server_id))
+    # Start background task to close expired bets
+    bot.loop.create_task(close_expired_bets())
 
 # Define bot commands
 @bot.command()
 @commands.check(is_admin)
 @commands.check(is_allowed_channel)
 async def startbet(ctx, title, time, player1: int, player2: int):
-    server_id = ctx.guild.id
-    users_collection = db[f"users_{server_id}"]
-    bets_collection = db[f"bets_{server_id}"]
     if player1 < 1 or player1 > NUM_PARTICIPANTS or player2 < 1 or player2 > NUM_PARTICIPANTS:
         await ctx.send("Invalid player IDs. Players should be between 1 and 30.", ephemeral=True)
         return
@@ -223,10 +216,8 @@ async def balance(ctx):
     else:
         await ctx.send("You don't have a balance yet. Join the server to get started.", ephemeral=True)
 
-async def close_expired_bets(server_id):
-    users_collection = db[f"users_{server_id}"]
-    bets_collection = db[f"bets_{server_id}"]
-
+# Background task to close expired bets
+async def close_expired_bets():
     while True:
         now = datetime.datetime.utcnow()
         expired_bets = bets_collection.find({"time": {"$lt": now}, "result": None})
@@ -236,7 +227,8 @@ async def close_expired_bets(server_id):
                 user_id = bet["user_id"]
                 amount = bet["amount"]
                 users_collection.update_one({"user_id": user_id}, {"$inc": {"points": amount}})  # Return bet amounts
-            print(f"Closed expired bet: {expired_bet['title']} (Server ID: {server_id})")
+            print(f"Closed expired bet: {expired_bet['title']}")
         await asyncio.sleep(60)  # Check every minute
+
 # Run the bot
 bot.run(DISCORD_TOKEN)
