@@ -89,7 +89,7 @@ async def forcestop(ctx):
 async def givept(ctx, user: discord.User, amount: int):
     users_collection.update_one({"user_id": user.id}, {"$inc": {"points": amount}})
     await ctx.send(f"Given {amount} points to {user.name}.", ephemeral=True)
-    print(f"{ctx.author.name} has given {amount} points to {user.name}")
+
 
 @bot.command()
 @commands.check(is_admin)
@@ -102,7 +102,7 @@ async def takept(ctx, user: discord.User, amount: int):
 
     users_collection.update_one({"user_id": user.id}, {"$inc": {"points": -amount}})
     await ctx.send(f"Taken {amount} points from {user.name}.", ephemeral=True)
-    print(f"{ctx.author.name} has taken {amount} points from {user.name}")
+
 
 @bot.command()
 @commands.check(is_admin)
