@@ -105,6 +105,17 @@ async def takept(ctx, user: discord.User, amount: int):
 @bot.command()
 @commands.check(is_admin)
 @commands.check(is_allowed_channel)
+async def showpt(ctx, user: discord.User):
+    user_data = users_collection.find_one({"user_id": user.id})
+    if user_data:
+        points = user_data.get("points", 0)
+        await ctx.send(f"{user.name}'s current balance is {points} points.", ephemeral=True)
+    else:
+        await ctx.send(f"{user.name} doesn't have a balance yet.", ephemeral=True)
+
+@bot.command()
+@commands.check(is_admin)
+@commands.check(is_allowed_channel)
 async def betlist(ctx, player: int):
     if player != 1 and player != 2:
         await ctx.send("Player should be either 1 or 2.", ephemeral=True)
@@ -244,8 +255,8 @@ def create_bet_embed(title, minutes, player1, player2, player1_name, player2_nam
     embed.add_field(name="Time remaining", value=f"{minutes} minutes", inline=False)
     embed.add_field(name="Challenger 1", value=player1_name, inline=True)
     embed.add_field(name="Challenger 2", value=player2_name, inline=True)
-    embed.set_image(url="https://imgur.com/9lBVS8F")
-    embed.set_footer(text="Betting Bot Powered by NickyBoy", icon_url="https://imgur.com/l67iXkZ")
+    embed.set_image(url="https://i.imgur.com/9lBVS8F.png")
+    embed.set_footer(text="Betting Bot Powered by NickyBoy", icon_url="https://i.imgur.com/l67iXkZ.png")
     return embed
 
 # Run the bot
