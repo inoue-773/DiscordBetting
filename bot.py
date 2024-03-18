@@ -7,6 +7,7 @@ from pymongo import MongoClient
 import datetime
 from dotenv import load_dotenv
 import logging
+import asyncio
 
 load_dotenv()
 
