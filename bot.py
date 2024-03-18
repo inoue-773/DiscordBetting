@@ -44,10 +44,11 @@ def findTheirGuild(guildName):
 
 def listGuild():
     guilds = bot.guilds
+    dbList = []  # Initialize a local dbList variable
     for guild in guilds:
         guildCutSpace = removeSpace(str(guild.name))
-        bot.dbList.append(guildCutSpace)
-    return bot.dbList
+        dbList.append(guildCutSpace)
+    return dbList
 
 def addGuild():
     global posts
@@ -144,11 +145,12 @@ def calculatePercentages():
 async def on_ready():
     print(f'Bot has logged in as {bot.user}')
     addGuild()
-    bot.dbList = listGuild()
+    bot.dbList = listGuild()  # Assign the result of listGuild() to bot.dbList
 
 @bot.event
 async def on_guild_join(guild):
     addGuild()
+
 
 @bot.command(name='start')
 @is_admin()
