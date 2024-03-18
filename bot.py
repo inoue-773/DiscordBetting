@@ -53,27 +53,35 @@ async def on_ready():
 @bot.command()
 @commands.check(is_admin)
 @commands.check(is_allowed_channel)
-async def startbet(ctx, title, minutes: int, player1: int, player2: int, player1_name: str, player2_name: str):
-    if player1 < 1 or player1 > NUM_PARTICIPANTS or player2 < 1 or player2 > NUM_PARTICIPANTS:
-        await ctx.send("Invalid player IDs. Players should be between 1 and 30.", ephemeral=True)
+async def startbet(ctx, title, minutes: int, *players):
+    if len(players) < 2 or len(players) > 6:
+        await ctx.send("You must provide between 2 and 6 player names.", ephemeral=True)
         return
+
+    player_ids = []
+    player_names = []
+    for i, player_name in enumerate(players[::2], start=1):
+        player_id = int(players[i * 2 - 1])
+        if player_id < 1 or player_id > NUM_PARTICIPANTS:
+            await ctx.send(f"Invalid player ID {player_id}. Players should be between 1 and {NUM_PARTICIPANTS}.", ephemeral=True)
+            return
+        player_ids.append(player_id)
+        player_names.append(player_name)
 
     time_obj = datetime.datetime.utcnow() + datetime.timedelta(minutes=minutes)
 
     bet_data = {
         "title": title,
         "time": time_obj,
-        "player1": player1,
-        "player2": player2,
-        "player1_name": player1_name,
-        "player2_name": player2_name,
+        "players": player_ids,
+        "player_names": player_names,
         "bets": [],
         "result": None
     }
 
     bets_collection.insert_one(bet_data)
-    embed = create_bet_embed(title, minutes, player1, player2, player1_name, player2_name)
-    countdown_task = asyncio.create_task(countdown(ctx, time_obj, title, player1, player2, player1_name, player2_name))
+    embed = create_bet_embed(title, minutes, player_ids, player_names)
+    countdown_task = asyncio.create_task(countdown(ctx, time_obj, title, player_ids, player_names))
     await ctx.send(embed=embed)
 
 @bot.command()
@@ -91,8 +99,6 @@ async def givept(ctx, user: discord.User, amount: int):
     await ctx.send(f"Given {amount} points to {user.name}.", ephemeral=True)
     print(f"Error:{ctx.author.name} has given {amount} points to {user.name}")
 
-
-
 @bot.command()
 @commands.check(is_admin)
 @commands.check(is_allowed_channel)
@@ -105,7 +111,6 @@ async def takept(ctx, user: discord.User, amount: int):
     users_collection.update_one({"user_id": user.id}, {"$inc": {"points": -amount}})
     await ctx.send(f"Taken {amount} points from {user.name}.", ephemeral=True)
     print(f"Error:{ctx.author.name} has taken {amount} points from {user.name}")
-
 
 @bot.command()
 @commands.check(is_admin)
@@ -122,17 +127,16 @@ async def showpt(ctx, user: discord.User):
 @commands.check(is_admin)
 @commands.check(is_allowed_channel)
 async def betlist(ctx, player: int):
-    if player != 1 and player != 2:
-        await ctx.send("Player should be either 1 or 2.", ephemeral=True)
-        return
-
     latest_bet = bets_collection.find_one({"result": None}, sort=[("time", -1)])
     if not latest_bet:
         await ctx.send("No ongoing bet found.", ephemeral=True)
         return
 
-    player_key = f"player{player}"
-    bettors = [bet["user_id"] for bet in latest_bet["bets"] if bet["player"] == latest_bet[player_key]]
+    if player not in latest_bet["players"]:
+        await ctx.send(f"Player {player} is not participating in the current bet.", ephemeral=True)
+        return
+
+    bettors = [bet["user_id"] for bet in latest_bet["bets"] if bet["player"] == player]
 
     if not bettors:
         await ctx.send(f"No one has placed a bet on player {player} yet.", ephemeral=True)
@@ -143,28 +147,24 @@ async def betlist(ctx, player: int):
 @bot.command()
 @commands.check(is_admin)
 @commands.check(is_allowed_channel)
-async def winner(ctx, player: int):
-    if player != 1 and player != 2:
-        await ctx.send("Player should be either 1 or 2.", ephemeral=True)
-        return
-
+async def winner(ctx, player_id: int):
     latest_bet = bets_collection.find_one({"result": None}, sort=[("time", -1)])
     if not latest_bet:
         await ctx.send("No ongoing bet found.", ephemeral=True)
         return
 
-    winner_id = latest_bet[f"player{player}"]
-    bets_collection.update_one({"_id": latest_bet["_id"]}, {"$set": {"result": player}})
+    if player_id not in latest_bet["players"]:
+        await ctx.send(f"Player {player_id} is not participating in the current bet.", ephemeral=True)
+        return
 
-    for bet in latest_bet["bets"]:
-        user_id = bet["user_id"]
-        amount = bet["amount"]
-        if bet["player"] == winner_id:
-            users_collection.update_one({"user_id": user_id}, {"$inc": {"points": amount}})  # Winner gets their bet amount
-        else:
-            pass  # Losers don't lose any points
+    bets_collection.update_one({"_id": latest_bet["_id"]}, {"$set": {"result": player_id}})
 
-    await ctx.send(f"Player {winner_id} has won the bet '{latest_bet['title']}'.")
+    payouts = calculate_payouts(latest_bet["bets"], player_id)
+
+    for user_id, payout in payouts.items():
+        users_collection.update_one({"user_id": user_id}, {"$inc": {"points": payout}})
+
+    await ctx.send(f"Player {player_id} has won the bet '{latest_bet['title']}'.")
 
 @bot.command()
 async def result(ctx):
@@ -175,11 +175,16 @@ async def result(ctx):
 
     winner_id = latest_bet["result"]
     title = latest_bet["title"]
-    player1 = latest_bet["player1"]
-    player2 = latest_bet["player2"]
+    player_ids = latest_bet["players"]
+    player_names = latest_bet["player_names"]
     time = latest_bet["time"].strftime("%Y-%m-%d %H:%M")
 
-    result_message = f"Bet '{title}' between player {player1} and player {player2} at {time}\n\n"
+    result_message = f"Bet '{title}' between players: "
+    for i, player_id in enumerate(player_ids, start=1):
+        result_message += f"{player_id} ({player_names[i - 1]}), "
+    result_message = result_message[:-2]  # Remove the trailing comma and space
+    result_message += f" at {time}\n\n"
+
     result_message += f"Winner: Player {winner_id}\n\n" if winner_id != -1 else "Bet expired\n\n"
     result_message += "Bets placed:\n"
 
@@ -192,35 +197,55 @@ async def result(ctx):
     await ctx.send(result_message)
 
 @bot.command()
-async def bet(ctx, amount: int, player: int):
-    if player != 1 and player != 2:
-        await ctx.send("Player should be either 1 or 2.", ephemeral=True)
-        return
-
-    user_id = ctx.author.id
-    user_data = users_collection.find_one({"user_id": user_id})
-    if user_data["points"] < amount:
-        await ctx.send(f"You don't have enough points to bet {amount}.", ephemeral=True)
-        return
-
+async def bet(ctx, player_id: int):
     latest_bet = bets_collection.find_one({"result": None}, sort=[("time", -1)])
     if not latest_bet:
         await ctx.send("No ongoing bet found.", ephemeral=True)
         return
 
-    if latest_bet[f"player{player}"] != player:
-        await ctx.send(f"Player {player} is not participating in the current bet.", ephemeral=True)
+    if player_id not in latest_bet["players"]:
+        await ctx.send(f"Player {player_id} is not participating in the current bet.", ephemeral=True)
+        return
+
+    user_id = ctx.author.id
+    user_data = users_collection.find_one({"user_id": user_id})
+    if not user_data:
+        await ctx.send("You don't have a balance yet. Join the server to get started.", ephemeral=True)
+        return
+
+    bet_amount, _ = await bot.get_context(ctx).send_modal(
+        title="Place Bet",
+        custom_id=f"bet_{user_id}",
+        components=[
+            discord.ui.TextInput(
+                label="Bet Amount",
+                placeholder="Enter the amount of points to bet",
+                style=discord.TextStyle.short,
+                min_length=1,
+                max_length=5,
+            )
+        ],
+    )
+
+    try:
+        amount = int(bet_amount.components[0].value)
+    except ValueError:
+        await bet_amount.response.send_message("Invalid bet amount. Please enter a valid number.", ephemeral=True)
+        return
+
+    if user_data["points"] < amount:
+        await bet_amount.response.send_message(f"You don't have enough points to bet {amount}.", ephemeral=True)
         return
 
     bet_data = {
         "user_id": user_id,
         "amount": amount,
-        "player": latest_bet[f"player{player}"]
+        "player": player_id
     }
     bets_collection.update_one({"_id": latest_bet["_id"]}, {"$push": {"bets": bet_data}})
     users_collection.update_one({"user_id": user_id}, {"$inc": {"points": -amount}})
 
-    await ctx.send(f"You have placed a bet of {amount} points on player {player}.", ephemeral=True)
+    await bet_amount.response.send_message(f"You have placed a bet of {amount} points on player {player_id}.", ephemeral=True)
 
 @bot.command()
 async def balance(ctx):
@@ -246,23 +271,49 @@ async def close_expired_bets():
             print(f"Closed expired bet: {expired_bet['title']}")
         await asyncio.sleep(60)  # Check every minute
 
-async def countdown(ctx, end_time, title, player1, player2, player1_name, player2_name):
+async def countdown(ctx, end_time, title, player_ids, player_names):
     countdown_channel = bot.get_channel(ALLOWED_CHANNEL_ID)
     time_remaining = end_time - datetime.datetime.utcnow()
     while time_remaining.total_seconds() > 0:
-        embed = create_bet_embed(title, time_remaining.total_seconds() // 60, player1, player2, player1_name, player2_name)
+        embed = create_bet_embed(title, time_remaining.total_seconds() // 60, player_ids, player_names)
         await countdown_channel.send(embed=embed, delete_after=time_remaining.total_seconds())
         await asyncio.sleep(time_remaining.total_seconds())
         time_remaining = end_time - datetime.datetime.utcnow()
 
-def create_bet_embed(title, minutes, player1, player2, player1_name, player2_name):
-    embed = discord.Embed(title=title, url="https://github.com/", description="/bet [1 or 2] to win the bet", color=0xfbff00)
+def create_bet_embed(title, minutes, player_ids, player_names):
+    embed = discord.Embed(title=title, url="https://github.com/", description="/bet [player_id] to win the bet", color=0xfbff00)
     embed.add_field(name="Time remaining", value=f"{minutes} minutes", inline=False)
-    embed.add_field(name="Challenger 1", value=player1_name, inline=True)
-    embed.add_field(name="Challenger 2", value=player2_name, inline=True)
+
+    for i, player_id in enumerate(player_ids, start=1):
+        embed.add_field(name=f"Contender {i}", value=player_names[i - 1], inline=True)
+
     embed.set_image(url="https://i.imgur.com/9lBVS8F.png")
     embed.set_footer(text="Betting Bot Powered by NickyBoy", icon_url="https://i.imgur.com/l67iXkZ.png")
     return embed
+
+def calculate_payouts(bets, winner_id):
+    winners_pool = {}
+    losers_pool = 0
+
+    for bet in bets:
+        user_id = bet["user_id"]
+        amount = bet["amount"]
+        if bet["player"] == winner_id:
+            winners_pool[user_id] = winners_pool.get(user_id, 0) + amount
+        else:
+            losers_pool += amount
+
+    if not winners_pool:
+        return {}
+
+    total_winners_pool = sum(winners_pool.values())
+    payouts = {}
+
+    for user_id, amount in winners_pool.items():
+        payout = amount + (amount / total_winners_pool) * losers_pool
+        payouts[user_id] = int(payout)
+
+    return payouts
 
 # Run the bot
 bot.run(DISCORD_TOKEN)
