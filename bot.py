@@ -49,6 +49,7 @@ async def on_ready():
     # Start background task to close expired bets
     bot.loop.create_task(close_expired_bets())
 
+# Define bot commands
 @bot.command()
 @commands.check(is_admin)
 @commands.check(is_allowed_channel)
@@ -86,9 +87,8 @@ async def startbet(ctx, title, minutes: int, *player_info):
 
     bets_collection.insert_one(bet_data)
     embed = create_bet_embed(title, minutes, player_ids, player_names)
-    countdown_task = asyncio.create_task(countdown(ctx, time_obj, title, player_ids, player_names))
     await ctx.send(embed=embed)
-
+    timer_task = asyncio.create_task(timer(ctx, time_obj, title))
 
 @bot.command()
 @commands.check(is_admin)
@@ -254,7 +254,6 @@ async def bet(ctx, player_id: int):
 
     await bet_amount.response.send_message(f"You have placed a bet of {amount} points on player {player_id}.", ephemeral=True)
 
-
 @bot.command()
 async def balance(ctx):
     user_id = ctx.author.id
@@ -279,14 +278,18 @@ async def close_expired_bets():
             print(f"Closed expired bet: {expired_bet['title']}")
         await asyncio.sleep(60)  # Check every minute
 
-async def countdown(ctx, end_time, title, player_ids, player_names):
+async def timer(ctx, end_time, title):
     countdown_channel = bot.get_channel(ALLOWED_CHANNEL_ID)
     time_remaining = end_time - datetime.datetime.utcnow()
+    timer_message = await countdown_channel.send(f"Bet '{title}' ends in {time_remaining}")
     while time_remaining.total_seconds() > 0:
-        embed = create_bet_embed(title, time_remaining.total_seconds() // 60, player_ids, player_names)
-        await countdown_channel.send(embed=embed, delete_after=time_remaining.total_seconds())
-        await asyncio.sleep(time_remaining.total_seconds())
         time_remaining = end_time - datetime.datetime.utcnow()
+        minutes, seconds = divmod(time_remaining.total_seconds(), 60)
+        new_timer_message = f"Bet '{title}' ends in {int(minutes)}m {int(seconds)}s"
+        await timer_message.edit(content=new_timer_message)
+        await asyncio.sleep(1)
+
+    await timer_message.edit(content=f"Bet '{title}' closed.")
 
 def create_bet_embed(title, minutes, player_ids, player_names):
     embed = discord.Embed(title=title, url="https://github.com/", description="/bet [player_id] to win the bet", color=0xfbff00)
