@@ -49,24 +49,29 @@ async def on_ready():
     # Start background task to close expired bets
     bot.loop.create_task(close_expired_bets())
 
-# Define bot commands
 @bot.command()
 @commands.check(is_admin)
 @commands.check(is_allowed_channel)
-async def startbet(ctx, title, minutes: int, *players):
-    if len(players) < 2 or len(players) > 6:
-        await ctx.send("You must provide between 2 and 6 player names.", ephemeral=True)
+async def startbet(ctx, title, minutes: int, *player_info):
+    if len(player_info) % 2 != 0 or len(player_info) < 4 or len(player_info) > 12:
+        await ctx.send("Invalid format. Please provide player IDs and names in the format: <player1_id> <player1_name> <player2_id> <player2_name> ... <player6_id> <player6_name>", ephemeral=True)
         return
 
     player_ids = []
     player_names = []
-    for i, player_name in enumerate(players[::2], start=1):
-        player_id = int(players[i * 2 - 1])
+    for i in range(0, len(player_info), 2):
+        try:
+            player_id = int(player_info[i])
+        except ValueError:
+            await ctx.send(f"Invalid player ID: {player_info[i]}", ephemeral=True)
+            return
+
         if player_id < 1 or player_id > NUM_PARTICIPANTS:
             await ctx.send(f"Invalid player ID {player_id}. Players should be between 1 and {NUM_PARTICIPANTS}.", ephemeral=True)
             return
+
         player_ids.append(player_id)
-        player_names.append(player_name)
+        player_names.append(player_info[i + 1])
 
     time_obj = datetime.datetime.utcnow() + datetime.timedelta(minutes=minutes)
 
@@ -83,6 +88,7 @@ async def startbet(ctx, title, minutes: int, *players):
     embed = create_bet_embed(title, minutes, player_ids, player_names)
     countdown_task = asyncio.create_task(countdown(ctx, time_obj, title, player_ids, player_names))
     await ctx.send(embed=embed)
+
 
 @bot.command()
 @commands.check(is_admin)
