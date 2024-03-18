@@ -278,7 +278,7 @@ async def close_expired_bets():
             print(f"Closed expired bet: {expired_bet['title']}")
         await asyncio.sleep(60)  # Check every minute
 
-async def timer(ctx, end_time, title):
+async def timer(ctx, end_time, title, player_ids, player_names):
     countdown_channel = bot.get_channel(ALLOWED_CHANNEL_ID)
     time_remaining = end_time - datetime.datetime.utcnow()
     timer_message = await countdown_channel.send(f"Bet '{title}' ends in {time_remaining}")
@@ -289,7 +289,41 @@ async def timer(ctx, end_time, title):
         await timer_message.edit(content=new_timer_message)
         await asyncio.sleep(1)
 
-    await timer_message.edit(content=f"Bet '{title}' closed.")
+    latest_bet = bets_collection.find_one({"title": title}, sort=[("time", -1)])
+    if not latest_bet:
+        await timer_message.edit(content="No completed bet found.")
+        return
+
+    winner_id = latest_bet["result"]
+    player_ids = latest_bet["players"]
+    player_names = latest_bet["player_names"]
+    bets_data = latest_bet["bets"]
+
+    embed = discord.Embed(title=title, url="https://github.com/", description="Result of latest bet", color=0x3ca5d6)
+
+    highest_bidder = None
+    highest_bid = 0
+    for bet in bets_data:
+        user_id = bet["user_id"]
+        amount = bet["amount"]
+        if amount > highest_bid:
+            highest_bidder = user_id
+            highest_bid = amount
+
+    if highest_bidder is not None:
+        highest_bidder_name = await bot.fetch_user(highest_bidder)
+        embed.add_field(name="Highest Bidder", value=highest_bidder_name.name, inline=False)
+
+    for i, player_id in enumerate(player_ids, start=1):
+        total_bet_amount = sum(bet["amount"] for bet in bets_data if bet["player"] == player_id)
+        embed.add_field(name=f"Contender {i}", value=f"Total points betted: {total_bet_amount}", inline=True)
+
+    embed.set_image(url="https://i.imgur.com/9lBVS8F.png")
+    embed.set_footer(text="Betting Bot Powered by NickyBoy", icon_url="https://i.imgur.com/l67iXkZ.png")
+
+    await timer_message.edit(content=None, embed=embed)
+
+    await timer_message.edit(content=f"## Bet '{title}' closed.")
 
 def create_bet_embed(title, minutes, player_ids, player_names):
     embed = discord.Embed(title=title, url="https://github.com/", description="/bet [player_id] to win the bet", color=0xfbff00)
