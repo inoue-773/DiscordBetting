@@ -84,15 +84,18 @@ def refund_dicts():
 def giveAmountWon(winnerPool):
     totalPool = sum(sum(pool.values()) for pool in contenderPools.values())
     winnerSum = sum(winnerPool.values())
+    loserSum = totalPool - winnerSum
+    distributedPercentage = float(os.getenv("DISTRIBUTED_PERCENTAGE"))
+    distributedPool = distributedPercentage * loserSum
     for user, amount in winnerPool.items():
         userPoints = bot.betCollection.find_one({"name": user})["points"]
         share = amount / winnerSum
-        payout = share * totalPool + amount
+        payout = share * distributedPool + amount
         bot.betCollection.update_one({"name": user}, {"$set": {"points": userPoints + math.trunc(payout)}})
         payOutPool[user] = math.trunc(payout)
 
 def startText(title, contenders, timer):
-    text = f"> Prediction Started: **{title}?** Time Left: **{timer}**\n"
+    text = f"## Prediction Started: **{title}** Time Left: **{timer}**\n"
     text += "```bash\n"
     for i, contender in enumerate(contenders, 1):
         text += f"Type /bet {i} (amount) to bet on \"{contender}\"\n"
@@ -110,7 +113,7 @@ def userInputText(user, amount, contender, percentages):
     return text
 
 def endText(title, percentages):
-    text = f"> Submissions Closed!: **{title}?**\n"
+    text = f"> Submissions Closed!: **{title}**\n"
     text += "```autohotkey\n"
     text += f"Total Pool: {globalDict['Total']} points\n"
     for contender, percentage in percentages.items():
