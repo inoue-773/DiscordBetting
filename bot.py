@@ -219,7 +219,8 @@ async def bet(ctx, player_id: int):
         await ctx.send("You don't have a balance yet. Join the server to get started.", ephemeral=True)
         return
 
-    bet_amount, _ = await bot.get_context(ctx).send_modal(
+    interaction_context = await bot.get_context(ctx)
+    bet_amount, _ = await interaction_context.send_modal(
         title="Place Bet",
         custom_id=f"bet_{user_id}",
         components=[
@@ -252,6 +253,7 @@ async def bet(ctx, player_id: int):
     users_collection.update_one({"user_id": user_id}, {"$inc": {"points": -amount}})
 
     await bet_amount.response.send_message(f"You have placed a bet of {amount} points on player {player_id}.", ephemeral=True)
+
 
 @bot.command()
 async def balance(ctx):
