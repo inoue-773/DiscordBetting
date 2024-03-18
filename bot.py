@@ -152,43 +152,39 @@ async def on_guild_join(guild):
     addGuild()
 
 
-@bot.slash_command(name='start', description='Start a prediction event')
-@option('title', description='The title of the prediction event')
-@option('timer', type=int, description='The duration of the event in seconds')
-@option('contenders', description='The contenders for the prediction event (comma-separated)')
+@bot.command(name='start')
 @is_admin()
-async def start(ctx, title: str, timer: int, contenders: str):
+async def start(ctx, title: str, timer: int, *contenders):
     if timer <= 0:
-        await ctx.respond("Timer must be greater than 0 seconds.")
+        await ctx.send("Timer must be greater than 0 seconds.")
         return
 
-    contenders_list = [c.strip() for c in contenders.split(',')]
-    if len(contenders_list) < 2 or len(contenders_list) > 10:
-        await ctx.respond("Number of contenders must be between 2 and 10.")
+    if len(contenders) < 2 or len(contenders) > 10:
+        await ctx.send("Number of contenders must be between 2 and 10.")
         return
 
     bot.predictionDB, bot.betCollection = findTheirGuild(ctx.guild.name)
     globalDict['title'] = title
     globalDict['Total'] = 0
-    for contender in contenders_list:
+    for contender in contenders:
         contenderPools[contender] = {}
     bot.endTime = datetime.datetime.now() + datetime.timedelta(seconds=timer)
 
     minutes, secs = divmod(timer, 60)
     timerStr = '{:02d}:{:02d}'.format(minutes, secs)
-    text = startText(title, contenders_list, timerStr)
-    message = await ctx.respond(text)
+    text = startText(title, contenders, timerStr)
+    message = await ctx.send(text)
 
     while datetime.datetime.now() < bot.endTime:
         remaining = (bot.endTime - datetime.datetime.now()).seconds
         minutes, secs = divmod(remaining, 60)
         timerStr = '{:02d}:{:02d}'.format(minutes, secs)
-        await message.edit(content=startText(title, contenders_list, timerStr))
+        await message.edit(content=startText(title, contenders, timerStr))
         await asyncio.sleep(1)
 
-    await ctx.respond("Prediction event has ended.")
+    await ctx.send("Prediction event has ended.")
     await ctx.invoke(close)
-
+    
 @bot.command(name='bet')
 async def bet(ctx, contender: int, amount: int):
     user = ctx.author.name
