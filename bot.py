@@ -68,8 +68,11 @@ def addGuild():
 
 def get_members(guild, guildCollection):
     for person in guild.members:
-        posts.append({"_id": person.id, "name": person.name, "points": 0})
-    guildCollection.insert_many(posts)
+        existingMember = guildCollection.find_one({"_id": person.id})
+        if existingMember is None:
+            posts.append({"_id": person.id, "name": person.name, "points": 1000})
+    if posts:
+        guildCollection.insert_many(posts)
 
 def resetAllDicts():
     globalDict.clear()
@@ -291,5 +294,17 @@ async def reducePts(ctx, member: discord.Member, amount: int):
     # Log the activity
     admin_name = ctx.author.name
     logging.info(f"{admin_name} has reduced {amount} points from {member.name}")
+
+@bot.command(name='balance')
+@is_admin()
+async def balance(ctx, member: discord.Member):
+    bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
+    userPoints = bot.userCollection.find_one({"name": member.name})["points"]
+    
+    message = f"{member.name}'s Balance:\nPoints: {userPoints}"
+    
+    await ctx.send(message, ephemeral=True)
+    
+    logging.warning(f"{ctx.author.name} checked {member.name}'s balance. Balance: {userPoints} points.")
 
 bot.run(TOKEN)
