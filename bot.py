@@ -194,20 +194,17 @@ async def start(ctx, title: str, timer: int, *contenders):
         minutes, secs = divmod(remaining, 60)
         timerStr = '{:02d}:{:02d}'.format(minutes, secs)
         await message.edit(content=startText(title, contenders, timerStr))
-        await asyncio.sleep(1)
-
-    # Update betting statistics when there is a change
-    prevStats = getBettingStats(contenders)
-    while datetime.datetime.now() < bot.endTime:
-        await asyncio.sleep(5)  # Check for changes every 5 seconds
+        
+        # Update betting statistics every second
         currentStats = getBettingStats(contenders)
-        if currentStats != prevStats:
-            await statsMessage.edit(embed=getBettingStatsEmbed(contenders))
-            prevStats = currentStats
+        embed = getBettingStatsEmbed(contenders)
+        await statsMessage.edit(embed=embed)
+        
+        await asyncio.sleep(1)
 
     await ctx.send("Prediction event has ended.")
     await ctx.invoke(close)
-
+    
 def getBettingStats(contenders):
     stats = []
     totalBets = sum(sum(pool.values()) for pool in contenderPools.values())
