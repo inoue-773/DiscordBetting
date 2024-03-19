@@ -210,7 +210,6 @@ async def start(ctx, title: str, timer: int, *contenders):
     await ctx.send("Prediction event has ended.")
     await ctx.invoke(close)
 
-# ... (rest of the code remains the same)
 def getBettingStats(contenders):
     stats = []
     totalBets = sum(sum(pool.values()) for pool in contenderPools.values())
