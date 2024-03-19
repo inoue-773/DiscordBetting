@@ -309,7 +309,7 @@ async def askPts(ctx):
     userMention = ctx.author.mention
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
     userPoints = bot.userCollection.find_one({"name": user})["points"]
-    await ctx.send(f"{userMention} you have {userPoints} points <:money:689308022660399117>", ephemeral=True)
+    await ctx.send(f"you have {userPoints} points", ephemeral=True)
 
 @bot.command(name='addpt')
 @is_admin()
