@@ -70,7 +70,7 @@ def get_members(guild, guildCollection):
     for person in guild.members:
         existingMember = guildCollection.find_one({"_id": person.id})
         if existingMember is None:
-            posts.append({"_id": person.id, "name": person.name, "points": 1000})
+            posts.append({"_id": person.id, "name": person.name, "points": 0})
     if posts:
         guildCollection.insert_many(posts)
 
