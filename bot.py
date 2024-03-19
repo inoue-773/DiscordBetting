@@ -187,15 +187,54 @@ async def start(ctx, title: str, timer: int, *contenders):
     text = startText(title, contenders, timerStr)
     message = await ctx.send(text)
 
+    # Send initial betting statistics message
+    statsMessage = await ctx.send(embed=getBettingStatsEmbed(contenders))
+
+    # Update betting statistics when there is a change
+    prevStats = getBettingStats(contenders)
     while datetime.datetime.now() < bot.endTime:
+        await asyncio.sleep(5)  # Check for changes every 5 seconds
+        currentStats = getBettingStats(contenders)
+        if currentStats != prevStats:
+            await statsMessage.edit(embed=getBettingStatsEmbed(contenders))
+            prevStats = currentStats
+
         remaining = (bot.endTime - datetime.datetime.now()).seconds
         minutes, secs = divmod(remaining, 60)
         timerStr = '{:02d}:{:02d}'.format(minutes, secs)
         await message.edit(content=startText(title, contenders, timerStr))
-        await asyncio.sleep(1)
 
     await ctx.send("Prediction event has ended.")
     await ctx.invoke(close)
+
+def getBettingStats(contenders):
+    stats = []
+    totalBets = sum(sum(pool.values()) for pool in contenderPools.values())
+
+    for contender in contenders:
+        pool = contenderPools[contender]
+        totalContenderBets = sum(pool.values())
+        percentage = (totalContenderBets / totalBets) * 100 if totalBets > 0 else 0
+        stats.append((contender, percentage, len(pool), totalContenderBets))
+
+    return stats
+
+def getBettingStatsEmbed(contenders):
+    embed = discord.Embed(title="Betting Statistics", color=discord.Color.blue())
+    totalBets = sum(sum(pool.values()) for pool in contenderPools.values())
+
+    for contender in contenders:
+        pool = contenderPools[contender]
+        totalContenderBets = sum(pool.values())
+        percentage = (totalContenderBets / totalBets) * 100 if totalBets > 0 else 0
+
+        topBettor = max(pool, key=pool.get) if pool else "N/A"
+        topBet = max(pool.values()) if pool else 0
+
+        embed.add_field(name=f"{contender} 🏆", value=f"**{percentage:.2f}%** | {len(pool)} bets | {totalContenderBets} points\nTop Bettor: {topBettor} ({topBet} points)", inline=False)
+
+    embed.description = f"Total Pool: {totalBets} points"
+    return embed
     
 @bot.command(name='bet')
 async def bet(ctx, contender: int, amount: int):
