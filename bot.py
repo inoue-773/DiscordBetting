@@ -113,20 +113,12 @@ def startText(title, contenders, timer):
 def userInputText(user, amount, contender, percentages):
     text = f"{user} has added to the pool with **{amount} points! on \"{contender}\"** "
 
-    for contender, percentage in percentages.items():
-        pool = contenderPools[contender]
-        text += f"{contender} Percent/People/Amount: {percentage}%, {len(pool)}, {sum(pool.values())}\n"
-    text += "```"
-    return text
+    
 
 def endText(title, percentages):
     text = f"wait for the winner to deside"
 
-    for contender, percentage in percentages.items():
-        pool = contenderPools[contender]
-        text += f"{contender} Percent/People/Amount: {percentage}%, {len(pool)}, {sum(pool.values())}\n"
-    text += "```"
-    return text
+
 
 def returnWinText(title, result, percentages):
     text = f"```autohotkey\n"
