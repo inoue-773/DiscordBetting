@@ -13,6 +13,7 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(message)s')
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='/', intents=intents, case_insensitive=True)
@@ -87,6 +88,10 @@ def giveAmountWon(winnerPool):
     loserSum = totalPool - winnerSum
     distributedPercentage = float(os.getenv("DISTRIBUTED_PERCENTAGE"))
     distributedPool = distributedPercentage * loserSum
+    deductedAmount = loserSum - distributedPool
+
+    logging.warning(f"Deducted {deductedAmount} points from the loser's pool.")
+
     for user, amount in winnerPool.items():
         userPoints = bot.betCollection.find_one({"name": user})["points"]
         share = amount / winnerSum
