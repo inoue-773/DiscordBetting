@@ -274,7 +274,7 @@ async def bet(ctx, contender: int, amount: int):
     text = userInputText(userMention, amount, selectedContender, percentages)
     await ctx.send(text)
 
-@bot.command(name='close')
+@bot.command(name='forcestop')
 @is_admin()
 async def close(ctx):
     percentages = calculatePercentages()
@@ -311,7 +311,7 @@ async def askPts(ctx):
     userMention = ctx.author.mention
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
     userPoints = bot.userCollection.find_one({"name": user})["points"]
-    await ctx.send(f"{userMention} you have {userPoints} points <:money:689308022660399117>")
+    await ctx.send(f"{userMention} you have {userPoints} points <:money:689308022660399117>", ephemeral=True)
 
 @bot.command(name='addpt')
 @is_admin()
