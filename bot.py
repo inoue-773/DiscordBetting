@@ -116,8 +116,17 @@ def userInputText(user, amount, contender, percentages):
     
 
 def endText(title, percentages):
-    text = f"wait for the winner to deside"
+    if not percentages:
+        return discord.Embed(title="No Bets Placed", description="There were no bets placed for this prediction event.", color=discord.Color.red())
 
+    embed = discord.Embed(title=f"Submissions Closed: {title}?", color=discord.Color.blue())
+    embed.add_field(name="Total Pool", value=f"{globalDict['Total']} points", inline=False)
+
+    for contender, percentage in percentages.items():
+        pool = contenderPools[contender]
+        embed.add_field(name=contender, value=f"{percentage}% | {len(pool)} bets | {sum(pool.values())} points", inline=False)
+
+    return embed
 
 
 def returnWinText(title, result, percentages):
@@ -261,12 +270,13 @@ async def bet(ctx, contender: int, amount: int):
     text = userInputText(userMention, amount, selectedContender, percentages)
     await ctx.send(text)
 
-@bot.command(name='forcestop')
+@bot.command(name='close')
 @is_admin()
 async def close(ctx):
     percentages = calculatePercentages()
-    text = endText(globalDict['title'], percentages)
-    await ctx.send(text)
+    embed = endText(globalDict['title'], percentages)
+    await ctx.send(embed=embed)
+
 
 @bot.command(name='winner')
 @is_admin()
