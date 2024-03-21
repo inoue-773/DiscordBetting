@@ -103,15 +103,15 @@ def giveAmountWon(winnerPool):
         payOutPool[user] = math.trunc(payout)
 
 def startText(title, contenders, timer):
-    text = f"## Prediction Started: **{title}** Time Left: **{timer}**\n"
-    text += "```bash\n"
+    text = f"## Prediction Started: **{title}** | Time Left: **{timer}**\n"
+
     for i, contender in enumerate(contenders, 1):
-        text += f"Type /bet {i} (amount) to bet on \"{contender}\"\n"
-    text += "Type /points to check how many points you have```"
+        text += f"> /bet {i} (賭けたい額) で \"{contender}\"に賭ける\n"
+    text += "> /ptsで現在の所持ポイントを確認"
     return text
 
 def userInputText(user, amount, contender, percentages):
-    text = f"{user} has added to the pool with **{amount} points! on \"{contender}\"** "
+    text = f"{user} が **{amount} ポイントを \"{contender}\" に賭けました！** "
 
     
 
@@ -130,18 +130,23 @@ def endText(title, percentages):
 
 
 def returnWinText(title, result, percentages):
-    text = f"```autohotkey\n"
-    text += f"Prediction Results: {result} Won!\n"
-    text += f"Title: \"{title}?\"\n"
-    text += f"Result: \"{result}\"\n"
-    maxVal = max(payOutPool.values())
-    biggestWinner = max(payOutPool, key=payOutPool.get)
-    text += f"Biggest Pay out: {biggestWinner} with +{maxVal} points\n"
+    embed = discord.Embed(title=f"Prediction Results: {result} Won!", color=discord.Color.green())
+    
+    embed.add_field(name="Title", value=f"{title}?", inline=False)
+    embed.add_field(name="Result", value=result, inline=False)
+    
+    if payOutPool:
+        maxVal = max(payOutPool.values())
+        biggestWinner = max(payOutPool, key=payOutPool.get)
+        embed.add_field(name="Biggest Payout", value=f"{biggestWinner} with +{maxVal} points", inline=False)
+    else:
+        embed.add_field(name="Biggest Payout", value="No bets were placed", inline=False)
+    
     for contender, percentage in percentages.items():
         pool = contenderPools[contender]
-        text += f"{contender} Percent/People/Amount: {percentage}%, {len(pool)}, {sum(pool.values())} points\n"
-    text += "```"
-    return text
+        embed.add_field(name=f"{contender} Stats", value=f"Percent: {percentage}%\nPeople: {len(pool)}\nAmount: {sum(pool.values())} points", inline=True)
+    
+    return embed
 
 def calculatePercentages():
     totalPool = sum(sum(pool.values()) for pool in contenderPools.values())
@@ -240,12 +245,12 @@ async def bet(ctx, contender: int, amount: int):
     user = ctx.author.name
     userMention = ctx.author.mention
     if datetime.datetime.now() >= bot.endTime:
-        await ctx.send(f"{userMention} Submissions have closed! <:ohwow:602690781224108052>")
+        await ctx.send(f"{userMention} Submissions have closed! <:ohwow:602690781224108052>", ephemeral=True)
         return
 
     contenders = list(contenderPools.keys())
     if contender < 1 or contender > len(contenders):
-        await ctx.send(f"{userMention} Invalid contender number.")
+        await ctx.send(f"{userMention} Invalid contender number.", ephemeral=True)
         return
 
     selectedContender = contenders[contender - 1]
@@ -253,17 +258,17 @@ async def bet(ctx, contender: int, amount: int):
     userPoints = userDB["points"]
 
     if userPoints < amount:
-        await ctx.send(f"{userMention} You don't have enough points. You have {userPoints} points.")
+        await ctx.send(f"{userMention} You don't have enough points. You have {userPoints} points.", ephemeral=True)
         return
-
-    for pool in contenderPools.values():
-        if user in pool:
-            await ctx.send(f"{userMention} You've already chosen a side. <:PogO:738917913670582323>")
-            return
 
     userPoints -= amount
     bot.betCollection.update_one({"name": user}, {"$set": {"points": userPoints}})
-    contenderPools[selectedContender][user] = amount
+
+    if user in contenderPools[selectedContender]:
+        contenderPools[selectedContender][user] += amount
+    else:
+        contenderPools[selectedContender][user] = amount
+
     globalDict['Total'] += amount
 
     percentages = calculatePercentages()
@@ -290,9 +295,8 @@ async def winner(ctx, contender: int):
     giveAmountWon(contenderPools[winnerContender])
 
     percentages = calculatePercentages()
-    text = returnWinText(globalDict['title'], winnerContender, percentages)
-    await ctx.send(text)
-
+    embed = returnWinText(globalDict['title'], winnerContender, percentages)
+    await ctx.send(embed=embed)
     resetAllDicts()
 
 @bot.command(name='refund')
@@ -300,7 +304,7 @@ async def winner(ctx, contender: int):
 async def refund(ctx):
     refund_dicts()
     resetAllDicts()
-    await ctx.send("The prediction has ended early, refunding your points. <:FeelsBadMan:692245421170622496>")
+    await ctx.send("賭けが中断されたので返金します")
 
 @bot.command(aliases=['points', 'pts'])
 async def askPts(ctx):
@@ -308,7 +312,7 @@ async def askPts(ctx):
     userMention = ctx.author.mention
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
     userPoints = bot.userCollection.find_one({"name": user})["points"]
-    await ctx.send(f"you have {userPoints} points", ephemeral=True)
+    await ctx.send(f"{userPoints} ポイント賭けられます:money_with_wings: ", ephemeral=True)
 
 @bot.command(name='addpt')
 @is_admin()
@@ -316,7 +320,9 @@ async def addPts(ctx, member: discord.Member, amount: int):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
     userPoints = bot.userCollection.find_one({"name": member.name})["points"] + amount
     bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
-    await ctx.send(f"{member.mention} you have {userPoints} points <:money:689308022660399117> <:Pog:602691798498017302>")
+
+    # Send ephemeral message to the admin
+    await ctx.send(f"You have added {amount} points to {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
 
     # Log the activity
     admin_name = ctx.author.name
@@ -328,7 +334,9 @@ async def reducePts(ctx, member: discord.Member, amount: int):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
     userPoints = bot.userCollection.find_one({"name": member.name})["points"] - amount
     bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
-    await ctx.send(f"{member.mention} you have {userPoints} points <:money:689308022660399117> <:FeelsBadMan:692245421170622496>")
+
+    # Send ephemeral message to the admin
+    await ctx.send(f"You have reduced {amount} points from {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
 
     # Log the activity
     admin_name = ctx.author.name
