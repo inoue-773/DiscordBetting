@@ -237,40 +237,7 @@ def getBettingStatsEmbed(contenders):
     embed.description = f"Total Pool: {totalPool} points"
     return embed
     
-@bot.command(name='bet')
-async def bet(ctx, contender: int, amount: int):
-    user = ctx.author.name
-    userMention = ctx.author.mention
-    if datetime.datetime.now() >= bot.endTime:
-        await ctx.send(f"{userMention} Submissions have closed! <:ohwow:602690781224108052>", ephemeral=True)
-        return
 
-    contenders = list(contenderPools.keys())
-    if contender < 1 or contender > len(contenders):
-        await ctx.send(f"{userMention} Invalid contender number.", ephemeral=True)
-        return
-
-    selectedContender = contenders[contender - 1]
-    userDB = bot.betCollection.find_one({"name": user})
-    userPoints = userDB["points"]
-
-    if userPoints < amount:
-        await ctx.send(f"{userMention} You don't have enough points. You have {userPoints} points.", ephemeral=True)
-        return
-
-    userPoints -= amount
-    bot.betCollection.update_one({"name": user}, {"$set": {"points": userPoints}})
-
-    if user in contenderPools[selectedContender]:
-        contenderPools[selectedContender][user] += amount
-    else:
-        contenderPools[selectedContender][user] = amount
-
-    globalDict['Total'] += amount
-
-    percentages = calculatePercentages()
-    text = userInputText(userMention, amount, selectedContender, percentages)
-    await ctx.send(text)
 
 @bot.command(name='close')
 @is_admin()
