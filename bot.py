@@ -178,7 +178,7 @@ async def bet(ctx, contender: int, amount: int):
 
     contenders = list(contenderPools.keys())
     if contender < 1 or contender > len(contenders):
-        await ctx.send(f"{userMention} Invalid contender number.", ephemeral=True)
+        await ctx.reply(f"{userMention} Invalid contender number.", ephemeral=True)
         return
 
     selectedContender = contenders[contender - 1]
@@ -193,7 +193,7 @@ async def bet(ctx, contender: int, amount: int):
         userPoints = userDB["points"]
 
     if userPoints < amount:
-        await ctx.send(f"ポイントがたりません。 {userPoints} ポイント持っています", ephemeral=True)
+        await ctx.reply(f"ポイントがたりません。 {userPoints} ポイント持っています", ephemeral=True)
         return
 
     userPoints -= amount
@@ -252,7 +252,7 @@ async def close(ctx):
 async def winner(ctx, contender: int):
     contenders = list(contenderPools.keys())
     if contender < 1 or contender > len(contenders):
-        await ctx.send("Invalid contender number.")
+        await ctx.reply("Invalid contender number.")
         return
 
     winnerContender = contenders[contender - 1]
@@ -276,7 +276,7 @@ async def askPts(ctx):
     userMention = ctx.author.mention
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
     userPoints = bot.userCollection.find_one({"name": user})["points"]
-    await ctx.send(f"{userPoints} ポイント賭けられます", ephemeral=True)
+    await ctx.reply(f"{userPoints} ポイント賭けられます", ephemeral=True)
 
 @bot.command(name='addpt')
 @is_admin()
@@ -286,7 +286,7 @@ async def addPts(ctx, member: discord.Member, amount: int):
     bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
 
     # Send ephemeral message to the admin
-    await ctx.send(f"You have added {amount} points to {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
+    await ctx.reply(f"You have added {amount} points to {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
 
     # Log the activity
     admin_name = ctx.author.name
@@ -300,7 +300,7 @@ async def reducePts(ctx, member: discord.Member, amount: int):
     bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
 
     # Send ephemeral message to the admin
-    await ctx.send(f"You have reduced {amount} points from {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
+    await ctx.reply(f"You have reduced {amount} points from {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
 
     # Log the activity
     admin_name = ctx.author.name
@@ -314,7 +314,7 @@ async def balance(ctx, member: discord.Member):
     
     message = f"{member.name}'s Balance:\nPoints: {userPoints}"
     
-    await ctx.send(message, ephemeral=True)
+    await ctx.reply(message, ephemeral=True)
     
     logging.warning(f"{ctx.author.name} checked {member.name}'s balance. Balance: {userPoints} points.")
 
