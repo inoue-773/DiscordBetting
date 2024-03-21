@@ -103,7 +103,7 @@ def giveAmountWon(winnerPool):
         payOutPool[user] = math.trunc(payout)
 
 def startText(title, contenders, timer):
-    text = f"## Prediction Started: **{title}** | Time Left: **{timer}**\n"
+    text = f"## **{title}**の賭けが開始しました\n 残り時間: **{timer}**\n"
 
     for i, contender in enumerate(contenders, 1):
         text += f"> /bet {i} (賭けたい額) で \"{contender}\"に賭ける\n"
@@ -168,63 +168,50 @@ async def on_guild_join(guild):
     addGuild()
 
 
-@bot.command(name='start')
-@is_admin()
-async def start(ctx, title: str, timer: int, *contenders):
-    if timer <= 0:
-        await ctx.send("Timer must be greater than 0 seconds.")
+@bot.command(name='bet')
+async def bet(ctx, contender: int, amount: int):
+    user = ctx.author.name
+    userMention = ctx.author.mention
+    if datetime.datetime.now() >= bot.endTime:
+        await ctx.send(f"{userMention} Submissions have closed! <:ohwow:602690781224108052>", ephemeral=True)
         return
 
-    if len(contenders) < 2 or len(contenders) > 10:
-        await ctx.send("Number of contenders must be between 2 and 10.")
+    contenders = list(contenderPools.keys())
+    if contender < 1 or contender > len(contenders):
+        await ctx.send(f"{userMention} Invalid contender number.", ephemeral=True)
         return
 
-    bot.predictionDB, bot.betCollection = findTheirGuild(ctx.guild.name)
-    globalDict['title'] = title
-    globalDict['Total'] = 0
-    for contender in contenders:
-        contenderPools[contender] = {}
-    bot.endTime = datetime.datetime.now() + datetime.timedelta(seconds=timer)
+    selectedContender = contenders[contender - 1]
+    userDB = bot.betCollection.find_one({"name": user})
 
-    minutes, secs = divmod(timer, 60)
-    timerStr = '{:02d}:{:02d}'.format(minutes, secs)
-    text = startText(title, contenders, timerStr)
-    message = await ctx.send(text)
+    if userDB is None:
+        # User is not in the database, create a new entry with default points
+        defaultPoints = 1000  # Adjust the default points as needed
+        bot.betCollection.insert_one({"name": user, "points": defaultPoints})
+        userPoints = defaultPoints
+    else:
+        userPoints = userDB["points"]
 
-    # Send initial betting statistics message
-    statsMessage = await ctx.send(embed=getBettingStatsEmbed(contenders))
+    if userPoints < amount:
+        await ctx.send(f"ポイントがたりません。 {userPoints} ポイント持っています", ephemeral=True)
+        return
 
-    # Update countdown timer every second
-    while datetime.datetime.now() < bot.endTime:
-        remaining = (bot.endTime - datetime.datetime.now()).seconds
-        minutes, secs = divmod(remaining, 60)
-        timerStr = '{:02d}:{:02d}'.format(minutes, secs)
-        await message.edit(content=startText(title, contenders, timerStr))
-        
-        # Update betting statistics every second
-        currentStats = getBettingStats(contenders)
-        embed = getBettingStatsEmbed(contenders)
-        await statsMessage.edit(embed=embed)
-        
-        await asyncio.sleep(1)
+    userPoints -= amount
+    bot.betCollection.update_one({"name": user}, {"$set": {"points": userPoints}})
 
-    await ctx.send("Prediction event has ended.")
-    await ctx.invoke(close)
-    
-def getBettingStats(contenders):
-    stats = []
-    totalBets = sum(sum(pool.values()) for pool in contenderPools.values())
+    if user in contenderPools[selectedContender]:
+        contenderPools[selectedContender][user] += amount
+    else:
+        contenderPools[selectedContender][user] = amount
 
-    for contender in contenders:
-        pool = contenderPools[contender]
-        totalContenderBets = sum(pool.values())
-        percentage = (totalContenderBets / totalBets) * 100 if totalBets > 0 else 0
-        stats.append((contender, percentage, len(pool), totalContenderBets))
+    globalDict['Total'] += amount
 
-    return stats
+    percentages = calculatePercentages()
+    text = userInputText(userMention, amount, selectedContender, percentages)
+    await ctx.send(text)
 
 def getBettingStatsEmbed(contenders):
-    embed = discord.Embed(title="Betting Statistics", color=discord.Color.blue())
+    embed = discord.Embed(title="リアルタイム賭け額", color=discord.Color.blue())
     totalBets = sum(sum(pool.values()) for pool in contenderPools.values())
 
     for contender in contenders:
@@ -236,8 +223,10 @@ def getBettingStatsEmbed(contenders):
         topBet = max(pool.values()) if pool else 0
 
         embed.add_field(name=f"{contender} 🏆", value=f"**{percentage:.2f}%** | {len(pool)} bets | {totalContenderBets} points\nTop Bettor: {topBettor} ({topBet} points)", inline=False)
+        
 
     embed.description = f"Total Pool: {totalBets} points"
+    embed.set_footer(text="Betting Bot By NickyBoy", icon_url="https://i.imgur.com/l67iXkZ.png")
     return embed
     
 @bot.command(name='bet')
@@ -312,7 +301,7 @@ async def askPts(ctx):
     userMention = ctx.author.mention
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
     userPoints = bot.userCollection.find_one({"name": user})["points"]
-    await ctx.send(f"{userPoints} ポイント賭けられます:money_with_wings: ", ephemeral=True)
+    await ctx.send(f"{userPoints} ポイント賭けられます", ephemeral=True)
 
 @bot.command(name='addpt')
 @is_admin()
