@@ -211,22 +211,30 @@ async def bet(ctx, contender: int, amount: int):
     await ctx.send(text)
 
 def getBettingStatsEmbed(contenders):
-    embed = discord.Embed(title="リアルタイム賭け額", color=discord.Color.blue())
-    totalBets = sum(sum(pool.values()) for pool in contenderPools.values())
+    embed = discord.Embed(title="Betting Statistics", color=discord.Color.blue())
+    totalPool = sum(sum(pool.values()) for pool in contenderPools.values())
 
     for contender in contenders:
         pool = contenderPools[contender]
         totalContenderBets = sum(pool.values())
-        percentage = (totalContenderBets / totalBets) * 100 if totalBets > 0 else 0
+        percentage = (totalContenderBets / totalPool) * 100 if totalPool > 0 else 0
+
+        if totalContenderBets > 0:
+            odds = (totalPool - totalContenderBets) / totalContenderBets
+            estimatedPayout = (odds * 100) + 100
+        else:
+            estimatedPayout = 0
 
         topBettor = max(pool, key=pool.get) if pool else "N/A"
         topBet = max(pool.values()) if pool else 0
 
-        embed.add_field(name=f"{contender} 🏆", value=f"**{percentage:.2f}%** | {len(pool)} bets | {totalContenderBets} points\nTop Bettor: {topBettor} ({topBet} points)", inline=False)
-        
+        fieldValue = f"**{percentage:.2f}%** | {len(pool)} bets | {totalContenderBets} points\n" \
+                     f"Estimated Payout per 100 points: {estimatedPayout:.2f} points\n" \
+                     f"Top Bettor: {topBettor} ({topBet} points)"
 
-    embed.description = f"Total Pool: {totalBets} points"
-    embed.set_footer(text="Betting Bot By NickyBoy", icon_url="https://i.imgur.com/l67iXkZ.png")
+        embed.add_field(name=f"{contender} 🏆", value=fieldValue, inline=False)
+
+    embed.description = f"Total Pool: {totalPool} points"
     return embed
     
 @bot.command(name='bet')
