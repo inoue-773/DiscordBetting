@@ -370,4 +370,4 @@ async def balance(ctx, member: discord.Member):
 
     logging.warning(f"{ctx.author.name} checked {member.name}'s balance. Balance: {userPoints} points.")
 
-bot.run(TOKEN, log_level=logging.WARN)
+bot.run(TOKEN)
