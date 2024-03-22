@@ -217,11 +217,13 @@ async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer:
 
     # Update betting statistics every 5 seconds
     while datetime.datetime.now() < bot.endTime:
-        await statsMessage.edit(embed=getBettingStatsEmbed(contenderList))
+        embed = getBettingStatsEmbed(contenderList)
+        await statsMessage.edit(embed=embed)
         await asyncio.sleep(5)
 
     await ctx.send("~~--------------------------------------------~~")
     await close(ctx)
+    
 
 @bot.slash_command(name='bet', description='誰かに賭ける  例: /bet 1 1000')
 async def bet(ctx, contender: discord.Option(int, "賭けたい対戦者の番号を選択", choices=['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], required = True), amount: discord.Option(int, "賭けたいポイント数を入力", required = True)):
