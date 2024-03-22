@@ -125,6 +125,8 @@ def endText(title, percentages):
     for contender, percentage in percentages.items():
         pool = contenderPools[contender]
         embed.add_field(name=contender, value=f"{percentage}% | {len(pool)} bets | {sum(pool.values())} points", inline=False)
+        embed.set_image(url="https://i.imgur.com/NhyxuwT.png")
+        embed.set_footer(text="Betting Bot by NickyBoy", icon_url="https://i.imgur.com/QfmDKS6.png")
 
     return embed
 
@@ -170,7 +172,7 @@ async def on_guild_join(guild):
 
 @bot.slash_command(name='start', description='賭けを開始 管理者専用')
 @is_admin()
-async def start(ctx, title: str, timer: int, contenders: str):
+async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer: discord.Option(int, "賭けの制限時間"), contenders: discord.Option(str, "対戦者の名前をコンマで区切って入力 例: Ritsu, Nicky")):
     if timer <= 0:
         await ctx.respond("0秒以上を指定してください", ephemeral=True)
         return
@@ -222,7 +224,7 @@ async def start(ctx, title: str, timer: int, contenders: str):
     await close(ctx)
 
 @bot.slash_command(name='bet', description='誰かに賭ける  例: /bet 1 1000')
-async def bet(ctx, contender: discord.Option(int, choices=['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']), amount: discord.Option(int, "賭けたいポイント数を入力", required = True)):
+async def bet(ctx, contender: discord.Option(int, "賭けたい対戦者の番号を選択", choices=['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], required = True), amount: discord.Option(int, "賭けたいポイント数を入力", required = True)):
     user = ctx.author.name
     userMention = ctx.author.mention
     if datetime.datetime.now() >= bot.endTime:
@@ -288,7 +290,7 @@ def getBettingStatsEmbed(contenders):
         embed.add_field(name=f"{contender} 🏆", value=fieldValue, inline=False)
 
     embed.description = f"合計ポイント: {totalPool} points"
-    embed.set_image(url="https://i.imgur.com/KMM9zI6.png")
+    embed.set_image(url="https://i.imgur.com/tfAhqTW.png")
     embed.set_footer(text="Betting Bot by NickyBoy", icon_url="https://i.imgur.com/QfmDKS6.png")
     return embed
 
@@ -332,13 +334,13 @@ async def askPts(ctx):
 
 @bot.slash_command(name='addpt', description='ポイントを増やす 管理者のみ')
 @is_admin()
-async def addPts(ctx, member: discord.Member, amount: int):
+async def addPts(ctx, member: discord.Member, amount: discord.Option(int, "ここに増やしたいポイント数を入力")):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
     userPoints = bot.userCollection.find_one({"name": member.name})["points"] + amount
     bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
 
     # Send ephemeral message to the admin
-    await ctx.respond(f"You have added {amount} points to {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
+    await ctx.respond(f"{member.name} のポイントを {amount} ポイント増やしました。 この人のアカウントには {userPoints} ポイントあります。", ephemeral=True)
 
     # Log the activity
     admin_name = ctx.author.name
@@ -346,19 +348,19 @@ async def addPts(ctx, member: discord.Member, amount: int):
 
 @bot.slash_command(name='reducept', description='ポイントを減らす 管理者のみ')
 @is_admin()
-async def reducePts(ctx, member: discord.Member, amount: int):
+async def reducePts(ctx, member: discord.Member, amount: discord.Option(int, "減らしたいポイント数を入力")):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
     userPoints = bot.userCollection.find_one({"name": member.name})["points"] - amount
     bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
 
     # Send ephemeral message to the admin
-    await ctx.respond(f"You have reduced {amount} points from {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
+    await ctx.respond(f"{member.name} のアカウントから {amount} ポイント減らしました。このアカウントには {userPoints} ポイントあります。", ephemeral=True)
 
     # Log the activity
     admin_name = ctx.author.name
     logging.warning(f"{admin_name} has reduced {amount} points from {member.name}")
 
-@bot.slash_command(name='balance', description='誰かのポイントを確認する 管理者のみ')
+@bot.slash_command(name='balance', description='特定のユーザーのポイントを確認する 管理者のみ')
 @is_admin()
 async def balance(ctx, member: discord.Member):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
