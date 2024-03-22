@@ -220,7 +220,7 @@ async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer:
         await statsMessage.edit(embed=getBettingStatsEmbed(contenderList))
         await asyncio.sleep(5)
 
-    await ctx.send("賭けが終了しました")
+    await ctx.send("~~--------------------------------------------~~")
     await close(ctx)
 
 @bot.slash_command(name='bet', description='誰かに賭ける  例: /bet 1 1000')
