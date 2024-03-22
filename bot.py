@@ -46,7 +46,7 @@ def findTheirGuild(guildName):
 
 def listGuild():
     guilds = bot.guilds
-    dbList = []  # Initialize a local dbList variable
+    dbList = []
     for guild in guilds:
         guildCutSpace = removeSpace(str(guild.name))
         dbList.append(guildCutSpace)
@@ -113,7 +113,7 @@ def startText(title, contenders, timer):
 def userInputText(user, amount, contender, percentages):
     text = f"{user} が **{amount} ポイントを \"{contender}\" に賭けました！** "
 
-    
+    return text
 
 def endText(title, percentages):
     if not percentages:
@@ -128,24 +128,23 @@ def endText(title, percentages):
 
     return embed
 
-
 def returnWinText(title, result, percentages):
     embed = discord.Embed(title=f"Prediction Results: {result} Won!", color=discord.Color.green())
-    
+
     embed.add_field(name="Title", value=f"{title}?", inline=False)
     embed.add_field(name="Result", value=result, inline=False)
-    
+
     if payOutPool:
         maxVal = max(payOutPool.values())
         biggestWinner = max(payOutPool, key=payOutPool.get)
         embed.add_field(name="Biggest Payout", value=f"{biggestWinner} with +{maxVal} points", inline=False)
     else:
         embed.add_field(name="Biggest Payout", value="No bets were placed", inline=False)
-    
+
     for contender, percentage in percentages.items():
         pool = contenderPools[contender]
         embed.add_field(name=f"{contender} Stats", value=f"Percent: {percentage}%\nPeople: {len(pool)}\nAmount: {sum(pool.values())} points", inline=True)
-    
+
     return embed
 
 def calculatePercentages():
@@ -161,24 +160,23 @@ def calculatePercentages():
 async def on_ready():
     print(f'Bot has logged in as {bot.user}')
     addGuild()
-    bot.dbList = listGuild()  # Assign the result of listGuild() to bot.dbList
+    bot.dbList = listGuild()
 
 @bot.event
 async def on_guild_join(guild):
     addGuild()
 
-
-@bot.command(name='bet')
+@bot.slash_command(name='bet', description='Place a bet on a contender')
 async def bet(ctx, contender: int, amount: int):
     user = ctx.author.name
     userMention = ctx.author.mention
     if datetime.datetime.now() >= bot.endTime:
-        await ctx.send(f"{userMention} Submissions have closed! <:ohwow:602690781224108052>", ephemeral=True)
+        await ctx.respond(f"{userMention} Submissions have closed! <:ohwow:602690781224108052>", ephemeral=True)
         return
 
     contenders = list(contenderPools.keys())
     if contender < 1 or contender > len(contenders):
-        await ctx.reply(f"{userMention} Invalid contender number.", ephemeral=True)
+        await ctx.respond(f"{userMention} Invalid contender number.", ephemeral=True)
         return
 
     selectedContender = contenders[contender - 1]
@@ -193,7 +191,7 @@ async def bet(ctx, contender: int, amount: int):
         userPoints = userDB["points"]
 
     if userPoints < amount:
-        await ctx.reply(f"ポイントがたりません。 {userPoints} ポイント持っています", ephemeral=True)
+        await ctx.respond(f"ポイントがたりません。 {userPoints} ポイント持っています", ephemeral=True)
         return
 
     userPoints -= amount
@@ -208,7 +206,7 @@ async def bet(ctx, contender: int, amount: int):
 
     percentages = calculatePercentages()
     text = userInputText(userMention, amount, selectedContender, percentages)
-    await ctx.send(text)
+    await ctx.respond(text)
 
 def getBettingStatsEmbed(contenders):
     embed = discord.Embed(title="Betting Statistics", color=discord.Color.blue())
@@ -236,23 +234,20 @@ def getBettingStatsEmbed(contenders):
 
     embed.description = f"Total Pool: {totalPool} points"
     return embed
-    
 
-
-@bot.command(name='close')
+@bot.slash_command(name='close', description='Close the betting submissions')
 @is_admin()
 async def close(ctx):
     percentages = calculatePercentages()
     embed = endText(globalDict['title'], percentages)
-    await ctx.send(embed=embed)
+    await ctx.respond(embed=embed)
 
-
-@bot.command(name='winner')
+@bot.slash_command(name='winner', description='Announce the winner')
 @is_admin()
 async def winner(ctx, contender: int):
     contenders = list(contenderPools.keys())
     if contender < 1 or contender > len(contenders):
-        await ctx.reply("Invalid contender number.")
+        await ctx.respond("Invalid contender number.")
         return
 
     winnerContender = contenders[contender - 1]
@@ -260,25 +255,25 @@ async def winner(ctx, contender: int):
 
     percentages = calculatePercentages()
     embed = returnWinText(globalDict['title'], winnerContender, percentages)
-    await ctx.send(embed=embed)
+    await ctx.respond(embed=embed)
     resetAllDicts()
 
-@bot.command(name='refund')
+@bot.slash_command(name='refund', description='Refund bets')
 @is_admin()
 async def refund(ctx):
     refund_dicts()
     resetAllDicts()
-    await ctx.send("賭けが中断されたので返金します")
+    await ctx.respond("賭けが中断されたので返金します")
 
-@bot.command(aliases=['points', 'pts'])
+@bot.slash_command(name='pts', description='Check your points')
 async def askPts(ctx):
     user = ctx.author.name
     userMention = ctx.author.mention
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
     userPoints = bot.userCollection.find_one({"name": user})["points"]
-    await ctx.reply(f"{userPoints} ポイント賭けられます", ephemeral=True)
+    await ctx.respond(f"{userPoints} ポイント賭けられます", ephemeral=True)
 
-@bot.command(name='addpt')
+@bot.slash_command(name='addpt', description='Add points to a member')
 @is_admin()
 async def addPts(ctx, member: discord.Member, amount: int):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
@@ -286,13 +281,13 @@ async def addPts(ctx, member: discord.Member, amount: int):
     bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
 
     # Send ephemeral message to the admin
-    await ctx.reply(f"You have added {amount} points to {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
+    await ctx.respond(f"You have added {amount} points to {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
 
     # Log the activity
     admin_name = ctx.author.name
     logging.info(f"{admin_name} has added {amount} points to {member.name}")
 
-@bot.command(name='reducept')
+@bot.slash_command(name='reducept', description='Reduce points from a member')
 @is_admin()
 async def reducePts(ctx, member: discord.Member, amount: int):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
@@ -300,22 +295,22 @@ async def reducePts(ctx, member: discord.Member, amount: int):
     bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
 
     # Send ephemeral message to the admin
-    await ctx.reply(f"You have reduced {amount} points from {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
+    await ctx.respond(f"You have reduced {amount} points from {member.name}. Their new balance is {userPoints} points.", ephemeral=True)
 
     # Log the activity
     admin_name = ctx.author.name
     logging.info(f"{admin_name} has reduced {amount} points from {member.name}")
 
-@bot.command(name='balance')
+@bot.slash_command(name='balance', description='Check a member\'s balance')
 @is_admin()
 async def balance(ctx, member: discord.Member):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
     userPoints = bot.userCollection.find_one({"name": member.name})["points"]
-    
+
     message = f"{member.name}'s Balance:\nPoints: {userPoints}"
-    
-    await ctx.reply(message, ephemeral=True)
-    
+
+    await ctx.respond(message, ephemeral=True)
+
     logging.warning(f"{ctx.author.name} checked {member.name}'s balance. Balance: {userPoints} points.")
 
 bot.run(TOKEN)
