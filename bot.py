@@ -166,6 +166,59 @@ async def on_ready():
 async def on_guild_join(guild):
     addGuild()
 
+@bot.slash_command(name='start', description='Start a new prediction event')
+@is_admin()
+async def start(ctx, title: str, timer: int, contenders: str):
+    if timer <= 0:
+        await ctx.respond("Timer must be greater than 0 seconds.", ephemeral=True)
+        return
+
+    contenderList = [c.strip() for c in contenders.split(',')]
+
+    if len(contenderList) < 2 or len(contenderList) > 10:
+        await ctx.respond("Number of contenders must be between 2 and 10.", ephemeral=True)
+        return
+
+    if globalDict:
+        await ctx.respond("A prediction event is already running. Please wait for it to finish or use /refund to cancel it.", ephemeral=True)
+        return
+
+    bot.predictionDB, bot.betCollection = findTheirGuild(ctx.guild.name)
+
+    globalDict['title'] = title
+    globalDict['Total'] = 0
+
+    for contender in contenderList:
+        contenderPools[contender] = {}
+
+    bot.endTime = datetime.datetime.now() + datetime.timedelta(seconds=timer)
+
+    minutes, secs = divmod(timer, 60)
+    timerStr = '{:02d}:{:02d}'.format(minutes, secs)
+
+    text = startText(title, contenderList, timerStr)
+
+    message = await ctx.send(text)
+
+    # Send initial betting statistics message
+    statsMessage = await ctx.send(embed=getBettingStatsEmbed(contenderList))
+
+    # Update countdown timer every second
+    while datetime.datetime.now() < bot.endTime:
+        remaining = (bot.endTime - datetime.datetime.now()).seconds
+        minutes, secs = divmod(remaining, 60)
+        timerStr = '{:02d}:{:02d}'.format(minutes, secs)
+        await message.edit(content=startText(title, contenderList, timerStr))
+        await asyncio.sleep(1)
+
+    # Update betting statistics every 5 seconds
+    while datetime.datetime.now() < bot.endTime:
+        await statsMessage.edit(embed=getBettingStatsEmbed(contenderList))
+        await asyncio.sleep(5)
+
+    await ctx.send("Prediction event has ended.")
+    await close(ctx)
+
 @bot.slash_command(name='bet', description='Place a bet on a contender')
 async def bet(ctx, contender: int, amount: int):
     user = ctx.author.name
