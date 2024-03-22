@@ -222,7 +222,7 @@ async def start(ctx, title: str, timer: int, contenders: str):
     await close(ctx)
 
 @bot.slash_command(name='bet', description='誰かに賭ける  例: /bet 1 1000')
-async def bet(ctx, contender: int, amount: int):
+async def bet(ctx, contender: discord.Option(int, choices=['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']), amount: discord.Option(int, "賭けたいポイント数を入力", required = True)):
     user = ctx.author.name
     userMention = ctx.author.mention
     if datetime.datetime.now() >= bot.endTime:
@@ -231,7 +231,7 @@ async def bet(ctx, contender: int, amount: int):
 
     contenders = list(contenderPools.keys())
     if contender < 1 or contender > len(contenders):
-        await ctx.respond(f"{userMention} 対戦者の番号が違います。", ephemeral=True)
+        await ctx.respond(f"{userMention} 対戦者の番号が違います。対戦者の番号は、統計情報の上に表示されます。", ephemeral=True)
         return
 
     selectedContender = contenders[contender - 1]
@@ -239,7 +239,7 @@ async def bet(ctx, contender: int, amount: int):
 
     if userDB is None:
         # User is not in the database, create a new entry with default points
-        defaultPoints = 1000  # Adjust the default points as needed
+        defaultPoints = 0  # Adjust the default points as needed
         bot.betCollection.insert_one({"name": user, "points": defaultPoints})
         userPoints = defaultPoints
     else:
@@ -292,7 +292,7 @@ def getBettingStatsEmbed(contenders):
     embed.set_footer(text="Betting Bot by NickyBoy", icon_url="https://i.imgur.com/QfmDKS6.png")
     return embed
 
-@bot.slash_command(name='close', description='Close the betting submissions')
+@bot.slash_command(name='close', description='賭けを中断する 管理者のみ')
 @is_admin()
 async def close(ctx):
     percentages = calculatePercentages()
