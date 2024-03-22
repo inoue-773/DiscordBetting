@@ -117,10 +117,10 @@ def userInputText(user, amount, contender, percentages):
 
 def endText(title, percentages):
     if not percentages:
-        return discord.Embed(title="No Bets Placed", description="There were no bets placed for this prediction event.", color=discord.Color.red())
+        return discord.Embed(title="だれも賭けませんでした", description="There were no bets placed for this prediction event.", color=discord.Color.red())
 
-    embed = discord.Embed(title=f"Submissions Closed: {title}?", color=discord.Color.blue())
-    embed.add_field(name="Total Pool", value=f"{globalDict['Total']} points", inline=False)
+    embed = discord.Embed(title=f"{title} の賭けが終了しました", color=discord.Color.blue())
+    embed.add_field(name="合計賭けポイント数", value=f"{globalDict['Total']} points", inline=False)
 
     for contender, percentage in percentages.items():
         pool = contenderPools[contender]
@@ -129,21 +129,23 @@ def endText(title, percentages):
     return embed
 
 def returnWinText(title, result, percentages):
-    embed = discord.Embed(title=f"Prediction Results: {result} Won!", color=discord.Color.green())
+    embed = discord.Embed(title=f"試合の結果: {result} が勝ちました!", color=discord.Color.green())
 
-    embed.add_field(name="Title", value=f"{title}?", inline=False)
-    embed.add_field(name="Result", value=result, inline=False)
+    embed.add_field(name="タイトル", value=f"{title}", inline=False)
+    embed.add_field(name="試合結果", value=result, inline=False)
 
     if payOutPool:
         maxVal = max(payOutPool.values())
         biggestWinner = max(payOutPool, key=payOutPool.get)
-        embed.add_field(name="Biggest Payout", value=f"{biggestWinner} with +{maxVal} points", inline=False)
+        embed.add_field(name="最大払い戻しポイント数", value=f"{biggestWinner} さん +{maxVal} points", inline=False)
     else:
-        embed.add_field(name="Biggest Payout", value="No bets were placed", inline=False)
+        embed.add_field(name="最大払い戻しポイント数", value="No bets were placed", inline=False)
 
     for contender, percentage in percentages.items():
         pool = contenderPools[contender]
-        embed.add_field(name=f"{contender} Stats", value=f"Percent: {percentage}%\nPeople: {len(pool)}\nAmount: {sum(pool.values())} points", inline=True)
+        embed.add_field(name=f"{contender} の情報", value=f"割合: {percentage}%\n賭けた人数: {len(pool)}\n賭けポイント合計: {sum(pool.values())} points", inline=True)
+        embed.set_image(url="https://i.imgur.com/sFEdFf4.png")
+        embed.set_footer(text="Betting Bot by NickyBoy", icon_url="https://i.imgur.com/QfmDKS6.png")
 
     return embed
 
@@ -166,21 +168,21 @@ async def on_ready():
 async def on_guild_join(guild):
     addGuild()
 
-@bot.slash_command(name='start', description='Start a new prediction event')
+@bot.slash_command(name='start', description='賭けを開始 管理者専用')
 @is_admin()
 async def start(ctx, title: str, timer: int, contenders: str):
     if timer <= 0:
-        await ctx.respond("Timer must be greater than 0 seconds.", ephemeral=True)
+        await ctx.respond("0秒以上を指定してください", ephemeral=True)
         return
 
     contenderList = [c.strip() for c in contenders.split(',')]
 
     if len(contenderList) < 2 or len(contenderList) > 10:
-        await ctx.respond("Number of contenders must be between 2 and 10.", ephemeral=True)
+        await ctx.respond("対戦者は2人から10人の間で指定してください", ephemeral=True)
         return
 
     if globalDict:
-        await ctx.respond("A prediction event is already running. Please wait for it to finish or use /refund to cancel it.", ephemeral=True)
+        await ctx.respond("すでに賭けが始まっています。/refundで賭けを終了するか、自動的に終了するまで待ってください。", ephemeral=True)
         return
 
     bot.predictionDB, bot.betCollection = findTheirGuild(ctx.guild.name)
@@ -216,20 +218,20 @@ async def start(ctx, title: str, timer: int, contenders: str):
         await statsMessage.edit(embed=getBettingStatsEmbed(contenderList))
         await asyncio.sleep(5)
 
-    await ctx.send("Prediction event has ended.")
+    await ctx.send("賭けが終了しました")
     await close(ctx)
 
-@bot.slash_command(name='bet', description='Place a bet on a contender')
+@bot.slash_command(name='bet', description='誰かに賭ける  例: /bet 1 1000')
 async def bet(ctx, contender: int, amount: int):
     user = ctx.author.name
     userMention = ctx.author.mention
     if datetime.datetime.now() >= bot.endTime:
-        await ctx.respond(f"{userMention} Submissions have closed! <:ohwow:602690781224108052>", ephemeral=True)
+        await ctx.respond(f"{userMention} 賭けはすでに終了しています", ephemeral=True)
         return
 
     contenders = list(contenderPools.keys())
     if contender < 1 or contender > len(contenders):
-        await ctx.respond(f"{userMention} Invalid contender number.", ephemeral=True)
+        await ctx.respond(f"{userMention} 対戦者の番号が違います。", ephemeral=True)
         return
 
     selectedContender = contenders[contender - 1]
@@ -262,7 +264,7 @@ async def bet(ctx, contender: int, amount: int):
     await ctx.respond(text)
 
 def getBettingStatsEmbed(contenders):
-    embed = discord.Embed(title="Betting Statistics", color=discord.Color.blue())
+    embed = discord.Embed(title="リアルタイム賭け統計情報", color=discord.Color.blue())
     totalPool = sum(sum(pool.values()) for pool in contenderPools.values())
 
     for contender in contenders:
@@ -280,12 +282,14 @@ def getBettingStatsEmbed(contenders):
         topBet = max(pool.values()) if pool else 0
 
         fieldValue = f"**{percentage:.2f}%** | {len(pool)} bets | {totalContenderBets} points\n" \
-                     f"Estimated Payout per 100 points: {estimatedPayout:.2f} points\n" \
+                     f"オッズ: {estimatedPayout:.2f} \n" \
                      f"Top Bettor: {topBettor} ({topBet} points)"
 
         embed.add_field(name=f"{contender} 🏆", value=fieldValue, inline=False)
 
-    embed.description = f"Total Pool: {totalPool} points"
+    embed.description = f"合計ポイント: {totalPool} points"
+    embed.set_image(url="https://i.imgur.com/KMM9zI6.png")
+    embed.set_footer(text="Betting Bot by NickyBoy", icon_url="https://i.imgur.com/QfmDKS6.png")
     return embed
 
 @bot.slash_command(name='close', description='Close the betting submissions')
@@ -295,7 +299,7 @@ async def close(ctx):
     embed = endText(globalDict['title'], percentages)
     await ctx.respond(embed=embed)
 
-@bot.slash_command(name='winner', description='Announce the winner')
+@bot.slash_command(name='winner', description='試合の勝者を決定 管理者のみ')
 @is_admin()
 async def winner(ctx, contender: int):
     contenders = list(contenderPools.keys())
@@ -311,14 +315,14 @@ async def winner(ctx, contender: int):
     await ctx.respond(embed=embed)
     resetAllDicts()
 
-@bot.slash_command(name='refund', description='Refund bets')
+@bot.slash_command(name='refund', description='全てのポイントを返金 管理者のみ')
 @is_admin()
 async def refund(ctx):
     refund_dicts()
     resetAllDicts()
     await ctx.respond("賭けが中断されたので返金します")
 
-@bot.slash_command(name='pts', description='Check your points')
+@bot.slash_command(name='pts', description='今の所持ポイントを確認')
 async def askPts(ctx):
     user = ctx.author.name
     userMention = ctx.author.mention
@@ -326,7 +330,7 @@ async def askPts(ctx):
     userPoints = bot.userCollection.find_one({"name": user})["points"]
     await ctx.respond(f"{userPoints} ポイント賭けられます", ephemeral=True)
 
-@bot.slash_command(name='addpt', description='Add points to a member')
+@bot.slash_command(name='addpt', description='ポイントを増やす 管理者のみ')
 @is_admin()
 async def addPts(ctx, member: discord.Member, amount: int):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
@@ -338,9 +342,9 @@ async def addPts(ctx, member: discord.Member, amount: int):
 
     # Log the activity
     admin_name = ctx.author.name
-    logging.info(f"{admin_name} has added {amount} points to {member.name}")
+    logging.warning(f"{admin_name} has added {amount} points to {member.name}")
 
-@bot.slash_command(name='reducept', description='Reduce points from a member')
+@bot.slash_command(name='reducept', description='ポイントを減らす 管理者のみ')
 @is_admin()
 async def reducePts(ctx, member: discord.Member, amount: int):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
@@ -352,9 +356,9 @@ async def reducePts(ctx, member: discord.Member, amount: int):
 
     # Log the activity
     admin_name = ctx.author.name
-    logging.info(f"{admin_name} has reduced {amount} points from {member.name}")
+    logging.warning(f"{admin_name} has reduced {amount} points from {member.name}")
 
-@bot.slash_command(name='balance', description='Check a member\'s balance')
+@bot.slash_command(name='balance', description='誰かのポイントを確認する 管理者のみ')
 @is_admin()
 async def balance(ctx, member: discord.Member):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
@@ -366,4 +370,4 @@ async def balance(ctx, member: discord.Member):
 
     logging.warning(f"{ctx.author.name} checked {member.name}'s balance. Balance: {userPoints} points.")
 
-bot.run(TOKEN)
+bot.run(TOKEN, log_level=logging.WARN)
