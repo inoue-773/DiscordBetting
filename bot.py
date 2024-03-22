@@ -1,5 +1,4 @@
 import discord
-from discord.ext import commands
 import os
 import math
 import random
@@ -102,7 +101,7 @@ def giveAmountWon(winnerPool):
         bot.betCollection.update_one({"name": user}, {"$set": {"points": userPoints + math.trunc(payout)}})
         payOutPool[user] = math.trunc(payout)
 
-def startText(title, contenders, timer):
+def Text(title, contenders, timer):
     text = f"## **{title}**の賭けが開始しました\n 残り時間: **{timer}**\n"
 
     for i, contender in enumerate(contenders, 1):
@@ -198,7 +197,7 @@ async def start(ctx, title: str, timer: int, contenders: str):
 
     text = startText(title, contenderList, timerStr)
 
-    message = await ctx.send(text)
+    message = await ctx.respond(text)
 
     # Send initial betting statistics message
     statsMessage = await ctx.send(embed=getBettingStatsEmbed(contenderList))
