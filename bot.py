@@ -202,7 +202,7 @@ async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer:
 
     text = startText(title, contenderList, timerStr)
 
-    message = await ctx.respond(text)
+    await ctx.respond(text)  # Use ctx.respond() for the initial response
 
     # Send initial betting statistics message
     statsMessage = await ctx.send(embed=getBettingStatsEmbed(contenderList))
@@ -212,7 +212,7 @@ async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer:
         remaining = (bot.endTime - datetime.datetime.now()).seconds
         minutes, secs = divmod(remaining, 60)
         timerStr = '{:02d}:{:02d}'.format(minutes, secs)
-        await message.edit(content=startText(title, contenderList, timerStr))
+        await statsMessage.edit(content=startText(title, contenderList, timerStr))
         await asyncio.sleep(1)
 
     # Update betting statistics every 5 seconds
