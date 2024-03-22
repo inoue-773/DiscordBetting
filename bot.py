@@ -102,7 +102,7 @@ def giveAmountWon(winnerPool):
         bot.betCollection.update_one({"name": user}, {"$set": {"points": userPoints + math.trunc(payout)}})
         payOutPool[user] = math.trunc(payout)
 
-def Text(title, contenders, timer):
+def startText(title, contenders, timer):
     text = f"## **{title}**の賭けが開始しました\n 残り時間: **{timer}**\n"
 
     for i, contender in enumerate(contenders, 1):
