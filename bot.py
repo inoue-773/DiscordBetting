@@ -29,7 +29,7 @@ payOutPool = {}
 def is_admin():
     def predicate(ctx):
         return any(role.id == ADMIN_ROLE_ID for role in ctx.author.roles)
-    return discord.check(predicate)
+    return discord.commands.check(predicate)
 
 def removeSpace(string):
     return string.replace(" ", "")
