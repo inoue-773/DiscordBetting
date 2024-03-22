@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(message)s')
 
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix='/', intents=intents, case_insensitive=True)
+bot = discord.Bot(command_prefix='/', intents=intents, case_insensitive=True)
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CLUSTER_LINK = os.getenv("MONGODB_CLUSTER_LINK")
@@ -29,7 +29,7 @@ payOutPool = {}
 def is_admin():
     def predicate(ctx):
         return any(role.id == ADMIN_ROLE_ID for role in ctx.author.roles)
-    return commands.check(predicate)
+    return discord.check(predicate)
 
 def removeSpace(string):
     return string.replace(" ", "")
