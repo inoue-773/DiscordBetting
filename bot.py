@@ -170,6 +170,12 @@ async def on_ready():
 async def on_guild_join(guild):
     addGuild()
 
+import discord
+from discord.ext import commands, tasks
+import asyncio
+
+# ... (rest of the code remains the same)
+
 @bot.slash_command(name='start', description='賭けを開始 管理者専用')
 @is_admin()
 async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer: discord.Option(int, "賭けの制限時間"), contenders: discord.Option(str, "対戦者の名前をコンマで区切って入力 例: Ritsu, Nicky")):
@@ -208,7 +214,10 @@ async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer:
     timerMessage = await ctx.send(f"残り時間: {timerStr}")
 
     # Send initial betting statistics message
-    statsMessage = await ctx.send(embed=getBettingStatsEmbed(contenderList))
+    bot.statsMessage = await ctx.send(embed=getBettingStatsEmbed(contenderList))
+
+    # Start the background task to update betting statistics
+    bot.update_stats.start(contenderList)
 
     # Update countdown timer every second
     while datetime.datetime.now() < bot.endTime:
@@ -218,14 +227,18 @@ async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer:
         await timerMessage.edit(content=f"残り時間: {timerStr}")
         await asyncio.sleep(1)
 
-    # Update betting statistics every 5 seconds
-    while datetime.datetime.now() < bot.endTime:
-        embed = getBettingStatsEmbed(contenderList)
-        await statsMessage.edit(embed=embed)
-        await asyncio.sleep(5)
+    # Stop the background task when the timer ends
+    bot.update_stats.stop()
 
     await ctx.send("~~--------------------------------------------~~")
     await close(ctx)
+
+@tasks.loop(seconds=5)
+async def update_stats(contenderList):
+    embed = getBettingStatsEmbed(contenderList)
+    await bot.statsMessage.edit(embed=embed)
+
+bot.update_stats = update_stats
     
 
 @bot.slash_command(name='bet', description='誰かに賭ける  例: /bet 1 1000')
@@ -345,7 +358,7 @@ async def addPts(ctx, member: discord.Member, amount: discord.Option(int, "こ�
     bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
 
     # Send ephemeral message to the admin
-    await ctx.respond(f"{member.name} のポイントを {amount} ポイント増やしました。 この人のアカウントには {userPoints} ポイントあります。", ephemeral=True)
+    await ctx.respond(f"{member.name} のポイントを {amount} ポイント増やしました。 この人のアカウントには {userPoints} ポイントあります。")
 
     # Log the activity
     admin_name = ctx.author.name
