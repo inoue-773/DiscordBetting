@@ -103,7 +103,7 @@ def giveAmountWon(winnerPool):
         payOutPool[user] = math.trunc(payout)
 
 def startText(title, contenders, timer):
-    text = f"## **{title}**の賭けが開始しました\n 残り時間: **{timer}**\n"
+    text = f"## **{title}**の賭けが開始しました\n"
 
     for i, contender in enumerate(contenders, 1):
         text += f"> /bet {i} (賭けたい額) で \"{contender}\"に賭ける\n"
@@ -211,7 +211,7 @@ async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer:
     await ctx.respond(text)
 
     # Send initial countdown timer message
-    timerMessage = await ctx.send(f"残り時間: {timerStr}")
+    timerMessage = await ctx.send(f"# 残り時間: {timerStr}")
 
     # Send initial betting statistics message
     bot.statsMessage = await ctx.send(embed=getBettingStatsEmbed(contenderList))
@@ -224,7 +224,7 @@ async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer:
         remaining = (bot.endTime - datetime.datetime.now()).seconds
         minutes, secs = divmod(remaining, 60)
         timerStr = '{:02d}:{:02d}'.format(minutes, secs)
-        await timerMessage.edit(content=f"残り時間: {timerStr}")
+        await timerMessage.edit(content=f"# 残り時間: {timerStr}")
         await asyncio.sleep(1)
 
     # Stop the background task when the timer ends
