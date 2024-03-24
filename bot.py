@@ -107,7 +107,7 @@ def startText(title, contenders, timer):
 
     for i, contender in enumerate(contenders, 1):
         text += f"> /bet {i} (賭けたい額) で \"{contender}\"に賭ける\n"
-    text += "> /ptsで現在の所持ポイントを確認"
+    text += "> /ptsで現在の所持ポイントを確認\n"
     text += "賭けのやり方は [こちら](https://discord.com/channels/1147925136419336295/1220396387724820492/1220694356063944774)"
     return text
 
