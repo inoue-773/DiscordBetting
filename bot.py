@@ -294,7 +294,8 @@ def getBettingStatsEmbed(contenders):
 
         if totalContenderBets > 0:
             odds = (totalPool - totalContenderBets) / totalContenderBets
-            estimatedPayout = (odds * 100) + 100
+            estimatedPayoutPer100pts = (odds * 100) + 100
+            estimatedPayout = estimatedPayoutPer100pts / 100
         else:
             estimatedPayout = 0
 
@@ -302,7 +303,7 @@ def getBettingStatsEmbed(contenders):
         topBet = max(pool.values()) if pool else 0
 
         fieldValue = f"**{percentage:.2f}%** | {len(pool)} bets | {totalContenderBets} points\n" \
-                     f"オッズ: {estimatedPayout:.2f} \n" \
+                     f"オッズ: {estimatedPayout:.2f} 倍\n" \
                      f"Top Bettor: {topBettor} ({topBet} points)"
 
         embed.add_field(name=f"{contender} 🏆", value=fieldValue, inline=False)
