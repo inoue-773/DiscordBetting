@@ -103,7 +103,7 @@ def giveAmountWon(winnerPool):
         payOutPool[user] = math.trunc(payout)
 
 def startText(title, contenders, timer):
-    text = f"## **{title}**の賭けが開始しました\n"
+    text = f"## **{title}**の賭けが開始しました <@&1221346922082598972>\n"
 
     for i, contender in enumerate(contenders, 1):
         text += f"> /bet {i} (賭けたい額) で \"{contender}\"に賭ける\n"
