@@ -349,14 +349,31 @@ async def askPts(ctx):
     user = ctx.author.name
     userMention = ctx.author.mention
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
-    userPoints = bot.userCollection.find_one({"name": user})["points"]
+    userDoc = bot.userCollection.find_one({"name": user})
+    
+    if userDoc:
+        userPoints = userDoc["points"]
+    else:
+        # Create a new user document with default points if it doesn't exist
+        defaultPoints = 0
+        bot.userCollection.insert_one({"name": user, "points": defaultPoints})
+        userPoints = defaultPoints
+    
     await ctx.respond(f"{userPoints} ポイント賭けられます", ephemeral=True)
 
 @bot.slash_command(name='addpt', description='ポイントを増やす 管理者のみ')
 @is_admin()
 async def addPts(ctx, member: discord.Member, amount: discord.Option(int, "ここに増やしたいポイント数を入力")):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
-    userPoints = bot.userCollection.find_one({"name": member.name})["points"] + amount
+    userDoc = bot.userCollection.find_one({"name": member.name})
+    
+    if userDoc:
+        userPoints = userDoc["points"] + amount
+    else:
+        # Create a new user document with default points if it doesn't exist
+        userPoints = amount
+        bot.userCollection.insert_one({"name": member.name, "points": userPoints})
+    
     bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
 
     # Send ephemeral message to the admin
