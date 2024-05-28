@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import os
 import math
 import random
@@ -13,10 +13,9 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(message)s')
 
 intents = discord.Intents.all()
-bot = discord.Bot(command_prefix='/', intents=intents, case_insensitive=True)
+bot = commands.Bot(command_prefix='/', intents=intents, case_insensitive=True)
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CLUSTER_LINK = os.getenv("MONGODB_CLUSTER_LINK")
@@ -53,20 +52,18 @@ def listGuild():
     return dbList
 
 def addGuild():
-    global posts
     guilds = bot.guilds
     dbList = cluster.list_database_names()
     for guild in guilds:
         thisGuild = removeSpace(guild.name)
-        posts = []
         if thisGuild not in dbList:
             collectionName = f"{thisGuild} Points"
             var = cluster[thisGuild]
             var.create_collection(collectionName)
-            this = var[collectionName]
-            get_members(guild, this)
+            get_members(guild, var[collectionName])
 
 def get_members(guild, guildCollection):
+    posts = []
     for person in guild.members:
         existingMember = guildCollection.find_one({"_id": person.id})
         if existingMember is None:
@@ -104,7 +101,6 @@ def giveAmountWon(winnerPool):
 
 def startText(title, contenders, timer):
     text = f"## **{title}**の賭けが開始しました\n"
-
     for i, contender in enumerate(contenders, 1):
         text += f"> /bet {i} (賭けたい額) で \"{contender}\"に賭ける\n"
     text += "> /ptsで現在の所持ポイントを確認\n"
@@ -112,9 +108,7 @@ def startText(title, contenders, timer):
     return text
 
 def userInputText(user, amount, contender, percentages):
-    text = f"{user} が **{amount} ポイントを \"{contender}\" に賭けました！** "
-
-    return text
+    return f"{user} が **{amount} ポイントを \"{contender}\" に賭けました！** "
 
 def endText(title, percentages):
     if not percentages:
@@ -126,14 +120,13 @@ def endText(title, percentages):
     for contender, percentage in percentages.items():
         pool = contenderPools[contender]
         embed.add_field(name=contender, value=f"{percentage}% | {len(pool)} bets | {sum(pool.values())} points", inline=False)
-        embed.set_image(url="https://i.imgur.com/NhyxuwT.png")
-        embed.set_footer(text="Betting Bot by NickyBoy", icon_url="https://i.imgur.com/QfmDKS6.png")
+    embed.set_image(url="https://i.imgur.com/NhyxuwT.png")
+    embed.set_footer(text="Betting Bot by NickyBoy", icon_url="https://i.imgur.com/QfmDKS6.png")
 
     return embed
 
 def returnWinText(title, result, percentages):
     embed = discord.Embed(title=f"試合の結果: {result} が勝ちました!", color=discord.Color.green())
-
     embed.add_field(name="タイトル", value=f"{title}", inline=False)
     embed.add_field(name="試合結果", value=result, inline=False)
 
@@ -147,8 +140,8 @@ def returnWinText(title, result, percentages):
     for contender, percentage in percentages.items():
         pool = contenderPools[contender]
         embed.add_field(name=f"{contender} の情報", value=f"割合: {percentage}%\n賭けた人数: {len(pool)}\n賭けポイント合計: {sum(pool.values())} points", inline=True)
-        embed.set_image(url="https://i.imgur.com/sFEdFf4.png")
-        embed.set_footer(text="Betting Bot by NickyBoy", icon_url="https://i.imgur.com/QfmDKS6.png")
+    embed.set_image(url="https://i.imgur.com/sFEdFf4.png")
+    embed.set_footer(text="Betting Bot by NickyBoy", icon_url="https://i.imgur.com/QfmDKS6.png")
 
     return embed
 
@@ -163,19 +156,13 @@ def calculatePercentages():
 
 @bot.event
 async def on_ready():
-    print(f'Bot has logged in as {bot.user}')
-    addGuild()
+    logging.info(f'Bot has logged in as {bot.user}')
     bot.dbList = listGuild()
+    addGuild()
 
 @bot.event
 async def on_guild_join(guild):
     addGuild()
-
-import discord
-from discord.ext import commands, tasks
-import asyncio
-
-# ... (rest of the code remains the same)
 
 @bot.slash_command(name='start', description='賭けを開始 管理者専用')
 @is_admin()
@@ -195,6 +182,9 @@ async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer:
         return
 
     bot.predictionDB, bot.betCollection = findTheirGuild(ctx.guild.name)
+    if bot.predictionDB is None or bot.betCollection is None:
+        await ctx.respond("Guild database not found.", ephemeral=True)
+        return
 
     globalDict['title'] = title
     globalDict['Total'] = 0
@@ -208,7 +198,6 @@ async def start(ctx, title: discord.Option(str, "試合のタイトル"), timer:
     timerStr = '{:02d}:{:02d}'.format(minutes, secs)
 
     text = startText(title, contenderList, timerStr)
-
     await ctx.respond(text)
 
     # Send initial countdown timer message
@@ -240,7 +229,6 @@ async def update_stats(contenderList):
     await bot.statsMessage.edit(embed=embed)
 
 bot.update_stats = update_stats
-    
 
 @bot.slash_command(name='bet', description='誰かに賭ける  例: /bet 1 1000')
 async def bet(ctx, contender: discord.Option(int, "賭けたい対戦者の番号を選択", choices=['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], required = True), amount: discord.Option(int, "賭けたいポイント数を入力", required = True)):
@@ -259,8 +247,7 @@ async def bet(ctx, contender: discord.Option(int, "賭けたい対戦者の番�
     userDB = bot.betCollection.find_one({"name": user})
 
     if userDB is None:
-        # User is not in the database, create a new entry with default points
-        defaultPoints = 0  # Adjust the default points as needed
+        defaultPoints = 0
         bot.betCollection.insert_one({"name": user, "points": defaultPoints})
         userPoints = defaultPoints
     else:
@@ -354,7 +341,6 @@ async def askPts(ctx):
     if userDoc:
         userPoints = userDoc["points"]
     else:
-        # Create a new user document with default points if it doesn't exist
         defaultPoints = 0
         bot.userCollection.insert_one({"name": user, "points": defaultPoints})
         userPoints = defaultPoints
@@ -370,16 +356,12 @@ async def addPts(ctx, member: discord.Member, amount: discord.Option(int, "こ�
     if userDoc:
         userPoints = userDoc["points"] + amount
     else:
-        # Create a new user document with default points if it doesn't exist
         userPoints = amount
         bot.userCollection.insert_one({"name": member.name, "points": userPoints})
     
     bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
 
-    # Send ephemeral message to the admin
     await ctx.respond(f"{member.name} のポイントを {amount} ポイント増やしました。 この人のアカウントには {userPoints} ポイントあります。")
-
-    # Log the activity
     admin_name = ctx.author.name
     logging.warning(f"{admin_name} has added {amount} points to {member.name}")
 
@@ -387,13 +369,15 @@ async def addPts(ctx, member: discord.Member, amount: discord.Option(int, "こ�
 @is_admin()
 async def reducePts(ctx, member: discord.Member, amount: discord.Option(int, "減らしたいポイント数を入力")):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
-    userPoints = bot.userCollection.find_one({"name": member.name})["points"] - amount
-    bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
+    userDoc = bot.userCollection.find_one({"name": member.name})
+    if userDoc:
+        userPoints = userDoc["points"] - amount
+        bot.userCollection.update_one({"name": member.name}, {"$set": {"points": userPoints}})
+    else:
+        await ctx.respond(f"Member {member.name} not found in database.", ephemeral=True)
+        return
 
-    # Send ephemeral message to the admin
     await ctx.respond(f"{member.name} のアカウントから {amount} ポイント減らしました。このアカウントには {userPoints} ポイントあります。", ephemeral=True)
-
-    # Log the activity
     admin_name = ctx.author.name
     logging.warning(f"{admin_name} has reduced {amount} points from {member.name}")
 
@@ -401,12 +385,13 @@ async def reducePts(ctx, member: discord.Member, amount: discord.Option(int, "�
 @is_admin()
 async def balance(ctx, member: discord.Member):
     bot.userDB, bot.userCollection = findTheirGuild(ctx.guild.name)
-    userPoints = bot.userCollection.find_one({"name": member.name})["points"]
-
-    message = f"{member.name}'s Balance:\nPoints: {userPoints}"
-
-    await ctx.respond(message, ephemeral=True)
-
-    logging.warning(f"{ctx.author.name} checked {member.name}'s balance. Balance: {userPoints} points.")
+    userDoc = bot.userCollection.find_one({"name": member.name})
+    if userDoc:
+        userPoints = userDoc["points"]
+        message = f"{member.name}'s Balance:\nPoints: {userPoints}"
+        await ctx.respond(message, ephemeral=True)
+        logging.warning(f"{ctx.author.name} checked {member.name}'s balance. Balance: {userPoints} points.")
+    else:
+        await ctx.respond(f"Member {member.name} not found in database.", ephemeral=True)
 
 bot.run(TOKEN)
