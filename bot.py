@@ -310,7 +310,7 @@ async def close(ctx):
 
 @bot.slash_command(name='winner', description='試合の勝者を決定 管理者のみ')
 @is_admin()
-async def winner(ctx, contender: int):
+async def winner(ctx, contender: discord.Option(int, "勝った対戦者の番号 しっかりと確認してから入力", required = True)):
     contenders = list(contenderPools.keys())
     if contender < 1 or contender > len(contenders):
         await ctx.respond("Invalid contender number.")
@@ -377,7 +377,7 @@ async def reducePts(ctx, member: discord.Member, amount: discord.Option(int, "�
         await ctx.respond(f"Member {member.name} not found in database.", ephemeral=True)
         return
 
-    await ctx.respond(f"{member.name} のアカウントから {amount} ポイント減らしました。このアカウントには {userPoints} ポイントあります。", ephemeral=True)
+    await ctx.respond(f"{member.name} のアカウントから {amount} ポイント減らしました。このアカウントには {userPoints} ポイントあります。")
     admin_name = ctx.author.name
     logging.warning(f"{admin_name} has reduced {amount} points from {member.name}")
 
